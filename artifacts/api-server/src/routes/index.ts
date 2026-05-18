@@ -7,6 +7,8 @@ import workspacesRouter from "./workspaces";
 import sectionsRouter from "./sections";
 import chatRouter from "./chat";
 import vaultRouter from "./vault";
+import exportRouter from "./export";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -18,5 +20,7 @@ router.use(workspacesRouter);
 router.use(sectionsRouter);
 router.use(chatRouter);
 router.use(vaultRouter);
+router.use(exportRouter);
+router.use(adminRouter);
 
 export default router;

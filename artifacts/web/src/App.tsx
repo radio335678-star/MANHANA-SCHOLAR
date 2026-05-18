@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,12 +16,19 @@ import WorkspaceDetail from "@/pages/workspaces/[id]";
 import WorkspaceEditor from "@/pages/workspaces/[id]/editor";
 import WorkspaceVault from "@/pages/workspaces/[id]/vault";
 import Profile from "@/pages/profile";
+import AdminDashboard from "@/pages/admin";
 
 import { ProtectedLayout } from "@/components/layout/ProtectedLayout";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 1000,
+      retry: 1,
+    },
+  },
+});
 
-// Only require VITE_CLERK_PUBLISHABLE_KEY for auth.
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 if (!PUBLISHABLE_KEY) {
@@ -34,7 +41,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/sign-in" component={SignInPage} />
       <Route path="/sign-up" component={SignUpPage} />
-      
+
       <Route path="/onboarding" component={Onboarding} />
 
       <Route path="/dashboard">
@@ -57,6 +64,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         <ProtectedLayout><Profile /></ProtectedLayout>
+      </Route>
+      <Route path="/admin">
+        <ProtectedLayout><AdminDashboard /></ProtectedLayout>
       </Route>
 
       <Route component={NotFound} />

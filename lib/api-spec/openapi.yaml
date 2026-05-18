@@ -1,36 +1,1190 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: "1.0.0"
+  description: MANTHANA-SCHOLER — AI-powered thesis and research writing platform for Indian medical scholars
+
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
-          description: Healthy
+          description: OK
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── REFERENCE DATA ──────────────────────────────────────────────────────────
+  /reference/domains:
+    get:
+      operationId: listDomains
+      summary: List medical domains
+      tags: [reference]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Domain"
+
+  /reference/qualifications:
+    get:
+      operationId: listQualifications
+      summary: List academic qualifications
+      tags: [reference]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Qualification"
+
+  /reference/colleges:
+    get:
+      operationId: listColleges
+      summary: List medical colleges
+      tags: [reference]
+      parameters:
+        - in: query
+          name: domain
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/College"
+
+  /reference/universities:
+    get:
+      operationId: listUniversities
+      summary: List affiliating universities
+      tags: [reference]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/University"
+
+  # ─── USER PROFILE ────────────────────────────────────────────────────────────
+  /profile:
+    get:
+      operationId: getProfile
+      summary: Get authenticated user profile
+      tags: [profile]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      operationId: upsertProfile
+      summary: Create or update user profile
+      tags: [profile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  # ─── DASHBOARD ───────────────────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      summary: Dashboard summary stats
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      summary: Recent activity feed
+      tags: [dashboard]
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityEvent"
+
+  # ─── WORKSPACES ──────────────────────────────────────────────────────────────
+  /workspaces:
+    get:
+      operationId: listWorkspaces
+      summary: List workspaces for the authenticated user
+      tags: [workspaces]
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, completed, archived]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workspace"
+
+    post:
+      operationId: createWorkspace
+      summary: Create a new workspace
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+
+  /workspaces/{id}:
+    get:
+      operationId: getWorkspace
+      summary: Get a workspace
+      tags: [workspaces]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateWorkspace
+      summary: Update a workspace
+      tags: [workspaces]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+
+    delete:
+      operationId: deleteWorkspace
+      summary: Delete a workspace
+      tags: [workspaces]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /workspaces/{id}/progress:
+    get:
+      operationId: getWorkspaceProgress
+      summary: Get section completion progress
+      tags: [workspaces]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceProgress"
+
+  # ─── SECTIONS ────────────────────────────────────────────────────────────────
+  /workspaces/{workspaceId}/sections:
+    get:
+      operationId: listSections
+      summary: List sections in a workspace
+      tags: [sections]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Section"
+
+    post:
+      operationId: createSection
+      summary: Create a section
+      tags: [sections]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SectionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Section"
+
+  /workspaces/{workspaceId}/sections/{sectionId}:
+    get:
+      operationId: getSection
+      summary: Get a section
+      tags: [sections]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: sectionId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Section"
+
+    patch:
+      operationId: updateSection
+      summary: Update a section
+      tags: [sections]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: sectionId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SectionUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Section"
+
+    delete:
+      operationId: deleteSection
+      summary: Delete a section
+      tags: [sections]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: sectionId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /workspaces/{workspaceId}/sections/reorder:
+    post:
+      operationId: reorderSections
+      summary: Reorder all sections in a workspace
+      tags: [sections]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SectionReorderInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Section"
+
+  # ─── AI CHAT ─────────────────────────────────────────────────────────────────
+  /workspaces/{workspaceId}/sections/{sectionId}/chat:
+    get:
+      operationId: listChatMessages
+      summary: List chat history for a section
+      tags: [chat]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: sectionId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+
+    post:
+      operationId: sendChatMessage
+      summary: Send a message to the AI assistant
+      tags: [chat]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: sectionId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+
+  /workspaces/{workspaceId}/sections/{sectionId}/chat/clear:
+    delete:
+      operationId: clearChatHistory
+      summary: Clear chat history for a section
+      tags: [chat]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: sectionId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Cleared
+
+  /workspaces/{workspaceId}/sections/{sectionId}/generate:
+    post:
+      operationId: generateSectionContent
+      summary: AI-generate draft content for a section
+      tags: [chat]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: sectionId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateContentInput"
+      responses:
+        "200":
+          description: Generated content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedContent"
+
+  # ─── VAULT ───────────────────────────────────────────────────────────────────
+  /workspaces/{workspaceId}/vault:
+    get:
+      operationId: listVaultResources
+      summary: List vault resources for a workspace
+      tags: [vault]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VaultResource"
+
+    post:
+      operationId: createVaultResource
+      summary: Add a resource to the vault
+      tags: [vault]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VaultResourceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultResource"
+
+  /workspaces/{workspaceId}/vault/summary:
+    get:
+      operationId: getVaultSummary
+      summary: Vault stats by type
+      tags: [vault]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultSummary"
+
+  /workspaces/{workspaceId}/vault/{resourceId}:
+    get:
+      operationId: getVaultResource
+      summary: Get a vault resource
+      tags: [vault]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultResource"
+
+    patch:
+      operationId: updateVaultResource
+      summary: Update a vault resource
+      tags: [vault]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VaultResourceUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultResource"
+
+    delete:
+      operationId: deleteVaultResource
+      summary: Delete a vault resource
+      tags: [vault]
+      parameters:
+        - in: path
+          name: workspaceId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ─── REFERENCE ───────────────────────────────────────────────────────────
+    Domain:
+      type: object
+      required: [id, name, slug, description]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        color:
+          type: ["string", "null"]
+
+    Qualification:
+      type: object
+      required: [id, name, abbreviation, domain, level]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        abbreviation:
+          type: string
+        domain:
+          type: string
+        level:
+          type: string
+
+    College:
+      type: object
+      required: [id, name, city, state, domain]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        domain:
+          type: string
+        universityId:
+          type: ["integer", "null"]
+
+    University:
+      type: object
+      required: [id, name, city, state]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+
+    # ─── USER PROFILE ────────────────────────────────────────────────────────
+    UserProfile:
+      type: object
+      required: [id, clerkUserId, fullName, email, domain, qualification, onboardingComplete, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        domain:
+          type: string
+        qualification:
+          type: string
+        collegeName:
+          type: ["string", "null"]
+        universityName:
+          type: ["string", "null"]
+        guideNames:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        onboardingComplete:
+          type: boolean
+        createdAt:
+          type: string
+
+    UserProfileInput:
+      type: object
+      required: [fullName, email, domain, qualification]
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+        domain:
+          type: string
+        qualification:
+          type: string
+        collegeName:
+          type: string
+        universityName:
+          type: string
+        guideNames:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        onboardingComplete:
+          type: boolean
+
+    # ─── DASHBOARD ───────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [totalWorkspaces, activeWorkspaces, completedWorkspaces, totalSections, completedSections, totalVaultResources, totalChatMessages, recentWorkspaces]
+      properties:
+        totalWorkspaces:
+          type: integer
+        activeWorkspaces:
+          type: integer
+        completedWorkspaces:
+          type: integer
+        totalSections:
+          type: integer
+        completedSections:
+          type: integer
+        totalVaultResources:
+          type: integer
+        totalChatMessages:
+          type: integer
+        recentWorkspaces:
+          type: array
+          items:
+            $ref: "#/components/schemas/Workspace"
+
+    ActivityEvent:
+      type: object
+      required: [id, type, description, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        description:
+          type: string
+        workspaceId:
+          type: ["integer", "null"]
+        workspaceTitle:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # ─── WORKSPACE ───────────────────────────────────────────────────────────
+    Workspace:
+      type: object
+      required: [id, userId, title, domain, status, totalSections, completedSections, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        domain:
+          type: string
+        qualification:
+          type: ["string", "null"]
+        guideName:
+          type: ["string", "null"]
+        collegeName:
+          type: ["string", "null"]
+        universityName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, completed, archived]
+        totalSections:
+          type: integer
+        completedSections:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    WorkspaceInput:
+      type: object
+      required: [title, domain]
+      properties:
+        title:
+          type: string
+          minLength: 2
+        description:
+          type: string
+        domain:
+          type: string
+        qualification:
+          type: string
+        guideName:
+          type: string
+        collegeName:
+          type: string
+        universityName:
+          type: string
+
+    WorkspaceUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 2
+        description:
+          type: string
+        domain:
+          type: string
+        qualification:
+          type: string
+        guideName:
+          type: string
+        collegeName:
+          type: string
+        universityName:
+          type: string
+        status:
+          type: string
+          enum: [active, completed, archived]
+
+    WorkspaceProgress:
+      type: object
+      required: [workspaceId, totalSections, completedSections, inProgressSections, notStartedSections, percentComplete, sections]
+      properties:
+        workspaceId:
+          type: integer
+        totalSections:
+          type: integer
+        completedSections:
+          type: integer
+        inProgressSections:
+          type: integer
+        notStartedSections:
+          type: integer
+        percentComplete:
+          type: number
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectionProgress"
+
+    SectionProgress:
+      type: object
+      required: [id, title, status, order]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+        order:
+          type: integer
+        wordCount:
+          type: ["integer", "null"]
+
+    # ─── SECTION ─────────────────────────────────────────────────────────────
+    Section:
+      type: object
+      required: [id, workspaceId, title, type, status, order, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          enum: [introduction, literature_review, methodology, results, discussion, conclusion, abstract, references, custom]
+        content:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [not_started, in_progress, completed, reviewed]
+        order:
+          type: integer
+        wordCount:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    SectionInput:
+      type: object
+      required: [title, type]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [introduction, literature_review, methodology, results, discussion, conclusion, abstract, references, custom]
+        content:
+          type: string
+        status:
+          type: string
+          enum: [not_started, in_progress, completed, reviewed]
+        order:
+          type: integer
+        notes:
+          type: string
+
+    SectionUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          enum: [introduction, literature_review, methodology, results, discussion, conclusion, abstract, references, custom]
+        content:
+          type: string
+        status:
+          type: string
+          enum: [not_started, in_progress, completed, reviewed]
+        order:
+          type: integer
+        notes:
+          type: string
+
+    SectionReorderInput:
+      type: object
+      required: [orderedIds]
+      properties:
+        orderedIds:
+          type: array
+          items:
+            type: integer
+
+    # ─── CHAT ────────────────────────────────────────────────────────────────
+    ChatMessage:
+      type: object
+      required: [id, sectionId, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+        sectionId:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        tokensUsed:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    ChatMessageInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+        includeContext:
+          type: boolean
+
+    GenerateContentInput:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+        tone:
+          type: string
+          enum: [academic, concise, detailed, formal]
+        wordLimit:
+          type: integer
+
+    GeneratedContent:
+      type: object
+      required: [content, tokensUsed]
+      properties:
+        content:
+          type: string
+        tokensUsed:
+          type: integer
+
+    # ─── VAULT ───────────────────────────────────────────────────────────────
+    VaultResource:
+      type: object
+      required: [id, workspaceId, type, title, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        type:
+          type: string
+          enum: [paper, note, reference, image, link]
+        title:
+          type: string
+        content:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        authors:
+          type: ["string", "null"]
+        year:
+          type: ["integer", "null"]
+        journal:
+          type: ["string", "null"]
+        doi:
+          type: ["string", "null"]
+        tags:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    VaultResourceInput:
+      type: object
+      required: [type, title]
+      properties:
+        type:
+          type: string
+          enum: [paper, note, reference, image, link]
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+        url:
+          type: string
+        authors:
+          type: string
+        year:
+          type: integer
+        journal:
+          type: string
+        doi:
+          type: string
+        tags:
+          type: string
+
+    VaultResourceUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+        url:
+          type: string
+        authors:
+          type: string
+        year:
+          type: integer
+        journal:
+          type: string
+        doi:
+          type: string
+        tags:
+          type: string
+
+    VaultSummary:
+      type: object
+      required: [total, byType, recentResources]
+      properties:
+        total:
+          type: integer
+        byType:
+          type: object
+          properties:
+            paper:
+              type: integer
+            note:
+              type: integer
+            reference:
+              type: integer
+            image:
+              type: integer
+            link:
+              type: integer
+        recentResources:
+          type: array
+          items:
+            $ref: "#/components/schemas/VaultResource"

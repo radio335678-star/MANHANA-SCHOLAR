@@ -73,13 +73,14 @@ catalogs:
 importers:
 
   .:
-    devDependencies:
+    optionalDependencies:
       '@tailwindcss/oxide-win32-x64-msvc':
         specifier: ^4.3.0
         version: 4.3.0
       lightningcss-win32-x64-msvc:
         specifier: 1.32.0
         version: 1.32.0
+    devDependencies:
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
@@ -2137,6 +2138,7 @@ packages:
   '@tailwindcss/oxide-win32-x64-msvc@4.3.0':
     resolution: {integrity: sha512-Mvrf2kXW/yeW/OTezZlCGOirXRcUuLIBx/5Y12BaPM7wJoryG6dfS/NJL8aBPqtTEx/Vm4T4vKzFUcKDT+TKUA==}
     engines: {node: '>= 20'}
+    cpu: [x64]
     os: [win32]
 
   '@tailwindcss/oxide@4.3.0':
@@ -3431,6 +3433,7 @@ packages:
   lightningcss-win32-x64-msvc@1.32.0:
     resolution: {integrity: sha512-Amq9B/SoZYdDi1kFrojnoqPLxYhQ4Wo5XiL8EVJrVsB8ARoC1PWW6VGtT0WKCemjy8aC+louJnjS7U18x3b06Q==}
     engines: {node: '>= 12.0.0'}
+    cpu: [x64]
     os: [win32]
 
   lightningcss@1.32.0:
@@ -5924,7 +5927,8 @@ snapshots:
   '@tailwindcss/oxide-win32-arm64-msvc@4.3.0':
     optional: true
 
-  '@tailwindcss/oxide-win32-x64-msvc@4.3.0': {}
+  '@tailwindcss/oxide-win32-x64-msvc@4.3.0':
+    optional: true
 
   '@tailwindcss/oxide@4.3.0':
     optionalDependencies:
@@ -7206,7 +7210,8 @@ snapshots:
   lightningcss-win32-arm64-msvc@1.32.0:
     optional: true
 
-  lightningcss-win32-x64-msvc@1.32.0: {}
+  lightningcss-win32-x64-msvc@1.32.0:
+    optional: true
 
   lightningcss@1.32.0:
     dependencies:

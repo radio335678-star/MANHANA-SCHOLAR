@@ -12,17 +12,35 @@ services:
     buildCommand: >-
       corepack enable &&
       corepack prepare pnpm@9.15.4 --activate &&
-      pnpm install --no-frozen-lockfile &&
+      export NODE_ENV=development &&
+      pnpm install --no-frozen-lockfile --filter @workspace/api-server... &&
       pnpm --filter @workspace/api-server run build
     startCommand: pnpm --filter @workspace/api-server start
-    healthCheckPath: /api/healthz/ready
+    # Liveness only — /api/healthz/ready returns 503 until DATABASE_URL + Supabase env are set.
+    healthCheckPath: /api/healthz
     envVars:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
         value: "22"
-      # Add in Render Dashboard (Environment):
-      # DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
-      # SUPABASE_STORAGE_BUCKET, KIMI_API_KEY, KIMI_BASE_URL, MOONSHOT_WEB_SEARCH,
-      # KIMI_PRIMARY_MODEL, KIMI_FALLBACK_MODELS
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        sync: false
+      - key: KIMI_API_KEY
+        sync: false
+      - key: KIMI_BASE_URL
+        sync: false
+      - key: MOONSHOT_WEB_SEARCH
+        sync: false
+      - key: KIMI_PRIMARY_MODEL
+        sync: false
+      - key: KIMI_FALLBACK_MODELS
+        sync: false
       # Optional: CORS_ALLOWED_ORIGINS=https://manhana-scholar.vercel.app

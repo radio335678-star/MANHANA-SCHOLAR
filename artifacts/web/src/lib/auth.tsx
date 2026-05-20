@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
-import { supabase } from "./supabaseClient";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 type AuthContextValue = {
   isLoaded: boolean;
@@ -27,6 +27,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setIsLoaded(true);
+      return;
+    }
+
     let mounted = true;
 
     supabase.auth.getSession().then(({ data }) => {
@@ -49,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getToken = useCallback(async () => {
+    if (!supabase) return null;
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token ?? null;
   }, []);
@@ -59,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [getToken]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (supabase) await supabase.auth.signOut();
   }, []);
 
   const value = useMemo<AuthContextValue>(

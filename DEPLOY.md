@@ -53,12 +53,14 @@ https://vercel.com/new?repository=https://github.com/radio335678-star/MANHANA-SC
 2. Confirm build settings (auto-read from [`vercel.json`](vercel.json)).
 2. Root directory: `/`. Settings are in [`vercel.json`](vercel.json).
 3. **Before first deploy**: edit `vercel.json` and replace `REPLACE_WITH_YOUR_RAILWAY_HOST` with your Railway hostname (no `https://`, e.g. `manthana-api-production.up.railway.app`).
-4. **Environment variables** (Project → Settings → Environment Variables):
+4. **Environment variables** (Project → Settings → Environment Variables) — **required for Production and Preview**:
 
 | Variable | Value |
 |----------|--------|
 | `VITE_SUPABASE_URL` | `https://lziejvvfmreprdnuifwx.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | Same anon key as Railway |
+| `VITE_SUPABASE_ANON_KEY` | Supabase → Settings → API → **anon** `public` key |
+
+**Important:** Vite bakes `VITE_*` into the JS at **build time**. After adding or changing these, click **Redeploy** (a blank white page usually means `VITE_SUPABASE_ANON_KEY` was missing during build).
 
 5. Deploy. Optional: set `CORS_ALLOWED_ORIGINS=https://YOUR-APP.vercel.app` on Railway if you call the API directly.
 

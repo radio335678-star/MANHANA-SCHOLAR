@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { supabase } from "@/lib/supabaseClient";
+import { requireSupabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ export default function SignInPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { error: signInError } = await requireSupabase().auth.signInWithPassword({
       email: email.trim(),
       password,
     });

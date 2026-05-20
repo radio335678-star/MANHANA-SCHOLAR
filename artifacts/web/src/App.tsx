@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth";
+import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { SupabaseConfigBanner } from "@/components/SupabaseConfigBanner";
 
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
@@ -69,6 +71,10 @@ function Router() {
 }
 
 function App() {
+  if (!isSupabaseConfigured) {
+    return <SupabaseConfigBanner />;
+  }
+
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClient}>

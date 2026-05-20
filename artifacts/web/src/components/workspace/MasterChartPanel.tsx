@@ -64,6 +64,17 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+async function safeErrorMessage(res: Response): Promise<string> {
+  try {
+    const j = await res.json() as { error?: string; message?: string };
+    return j.error ?? j.message ?? `Request failed (${res.status})`;
+  } catch {
+    const t = await res.text().catch(() => "");
+    if (t.toLowerCase().startsWith("<!")) return `Server error (${res.status}) — please try again`;
+    return t.slice(0, 200) || `Request failed (${res.status})`;
+  }
+}
+
 function buildAssistantReply(spec: ReturnType<typeof parseSheetSpec>, version: number) {
   const sheets = getWorkbookSheets(spec);
   const sheetCount = sheets.length;
@@ -109,6 +120,7 @@ export function MasterChartPanel({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [statusText, setStatusText] = useState<string>();
   const [deletingVersion, setDeletingVersion] = useState<number | null>(null);
+  const [lastPrompt, setLastPrompt] = useState<string | null>(null);
 
   const gated =
     workflowState === "locked_in" ||
@@ -304,10 +316,11 @@ export function MasterChartPanel({
 
   const handleGenerate = async (promptText: string) => {
     if (!selectedId) return;
+    setLastPrompt(promptText);
     const userMsg: ChatMessage = { id: uid(), role: "user", content: promptText, timestamp: Date.now() };
     setMessages((m) => [...m, userMsg]);
     setBusy(true);
-    setStatusText("Reading uploaded document and building Excel sheets…");
+    setStatusText("Reading context and thinking…");
     try {
       const res = await authFetch(`/master-charts/${selectedId}/generate`, {
         method: "POST",
@@ -318,10 +331,10 @@ export function MasterChartPanel({
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Generate failed");
+        const errMsg = await safeErrorMessage(res);
+        throw new Error(errMsg);
       }
-      const json = await res.json();
+      const json = await res.json() as { schema: unknown; version: number; vaultResourceId?: number };
       const spec = parseSheetSpec(json.schema);
       const prevCols = activeSpec.columns?.map((c) => c.header) ?? [];
       const newCols = spec.columns?.map((c) => c.header) ?? [];
@@ -338,6 +351,7 @@ export function MasterChartPanel({
         timestamp: Date.now(),
       };
       setMessages((m) => [...m, assistantMsg]);
+      setLastPrompt(null);
       await loadDetail(selectedId);
       await loadCharts();
       toast({
@@ -345,18 +359,19 @@ export function MasterChartPanel({
         description: json.vaultResourceId ? "Saved to Research Vault." : undefined,
       });
     } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : "Generate failed";
       setMessages((m) => [
         ...m,
         {
           id: uid(),
           role: "assistant",
-          content: `Error: ${e instanceof Error ? e.message : "Generate failed"}`,
+          content: `__error__${errorMsg}`,
           timestamp: Date.now(),
         },
       ]);
       toast({
         title: "Generate failed",
-        description: e instanceof Error ? e.message : undefined,
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
@@ -421,8 +436,8 @@ export function MasterChartPanel({
       },
     );
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error ?? "Context upload failed");
+      const errMsg = await safeErrorMessage(res);
+      throw new Error(errMsg);
     }
     await loadDetail(selectedId);
     toast({
@@ -450,8 +465,8 @@ export function MasterChartPanel({
         method: "DELETE",
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Delete failed");
+        const errMsg = await safeErrorMessage(res);
+        throw new Error(errMsg);
       }
       const json = (await res.json()) as { currentVersion: number };
       setVersionCache((prev) => {
@@ -510,10 +525,23 @@ export function MasterChartPanel({
           e.target.value = "";
         }}
       />
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void handleDownload("xlsx")}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        disabled={currentVersion === 0}
+        onClick={() => void handleDownload("xlsx")}
+        title="Download as Excel (.xlsx)"
+      >
         <Download className="w-3.5 h-3.5" /> XLSX
       </Button>
-      <Button variant="ghost" size="sm" onClick={() => void handleDownload("csv")}>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={currentVersion === 0}
+        onClick={() => void handleDownload("csv")}
+        title="Download as CSV"
+      >
         CSV
       </Button>
       {activePreview?.vaultResourceId && (
@@ -565,7 +593,9 @@ export function MasterChartPanel({
       busy={busy}
       statusText={statusText}
       contextFiles={contextFiles}
+      lastPrompt={lastPrompt}
       onSend={(text) => void handleGenerate(text)}
+      onRetry={lastPrompt ? () => void handleGenerate(lastPrompt) : undefined}
       onContextUpload={handleContextUpload}
       onContextDelete={handleContextDelete}
       onExpand={() => setLayoutMode("fullscreen")}
@@ -697,11 +727,22 @@ export function MasterChartPanel({
       {workspaceBody}
 
       {charts.length === 0 && (
-        <div className="text-center space-y-3 py-8">
-          <CheckCircle2 className="w-10 h-10 mx-auto text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">
-            No datasets yet. Create one to build your master chart before thesis writing.
-          </p>
+        <div className="flex flex-col items-center text-center space-y-4 py-12 px-6 border border-dashed rounded-xl bg-muted/10">
+          <Database className="w-10 h-10 text-muted-foreground/30" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">No datasets yet</p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              Build your master chart before writing thesis sections. Upload context files (PDF, images, DOCX) and let AI create the perfect data schema.
+            </p>
+          </div>
+          <div className="flex gap-2 flex-wrap justify-center">
+            <Button size="sm" onClick={handleCreate} disabled={busy} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Create dataset
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setGuideOpen(true)} className="gap-1.5">
+              <BookOpen className="w-3.5 h-3.5" /> How it works
+            </Button>
+          </div>
         </div>
       )}
     </div>

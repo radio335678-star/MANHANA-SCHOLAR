@@ -184,7 +184,9 @@ router.post(
         vaultResourceId: result.vaultResourceId,
       });
     } catch (err) {
-      res.status(400).json({ error: err instanceof Error ? err.message : "Generate failed" });
+      const msg = err instanceof Error ? err.message : "Generate failed";
+      const isTimeout = msg.toLowerCase().includes("timed out");
+      res.status(isTimeout ? 408 : 400).json({ error: msg });
     }
   },
 );

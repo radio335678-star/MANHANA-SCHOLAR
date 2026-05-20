@@ -42,6 +42,11 @@ export function PreThesisAiAssistant({
   }, [streaming, onStreamingChange]);
 
   useEffect(() => {
+    // Skip fetching history when disabled (e.g. pre-thesis is locked — server returns 403)
+    if (disabled) {
+      setLoadingHistory(false);
+      return;
+    }
     void (async () => {
       try {
         const token = await getToken();
@@ -56,7 +61,7 @@ export function PreThesisAiAssistant({
         setLoadingHistory(false);
       }
     })();
-  }, [workspaceId, getToken]);
+  }, [workspaceId, getToken, disabled]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

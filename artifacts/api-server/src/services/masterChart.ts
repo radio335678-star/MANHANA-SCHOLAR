@@ -22,6 +22,22 @@ import { getWorkspaceAiContext } from "../lib/workspaceContext";
 import { isAtLeastLocked, isWorkflowState } from "../types/workflow";
 import { saveArtifactToVault } from "../lib/vaultArtifact";
 import { extractDatasetContextText } from "../lib/contextExtract";
+import { logger } from "../lib/logger";
+
+const KIMI_GENERATION_TIMEOUT_MS = 110_000; // 110s — beats Render's 120s gateway timeout
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`AI generation timed out after ${ms / 1000}s. Please try again — complex documents may need a simpler prompt or smaller upload.`)),
+      ms,
+    );
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
 
 export async function assertMasterChartAllowed(workspaceId: number): Promise<void> {
   const [ws] = await db
@@ -240,7 +256,12 @@ export async function generateMasterChartVersion(
     }
   }
 
-  const { spec, modelUsed, workbook } = await kimiGenerateSheetSpec(prompt, fullContext, currentSheet);
+  logger.info({ workspaceId, chartId }, "Starting Kimi sheet generation");
+  const { spec, modelUsed, workbook } = await withTimeout(
+    kimiGenerateSheetSpec(prompt, fullContext, currentSheet),
+    KIMI_GENERATION_TIMEOUT_MS,
+    "kimiGenerateSheetSpec",
+  );
   const xlsx = await buildXlsxFromSpec(workbook);
   const stats = computeBasicStats(spec);
 

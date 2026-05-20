@@ -116,6 +116,21 @@ router.post("/workspaces/:workspaceId/sections", requireAuth, async (req, res): 
   res.status(201).json(sectionToResponse(section!));
 });
 
+router.get("/workspaces/:workspaceId/sections/coherence", requireAuth, async (req, res): Promise<void> => {
+  const dbUser = await requireDbUser(req, res);
+  if (!dbUser) return;
+
+  const workspaceId = parseInt(String(req.params.workspaceId), 10);
+  if (isNaN(workspaceId)) { res.status(400).json({ error: "Invalid workspace ID" }); return; }
+
+  const ws = await verifyWorkspaceOwnership(workspaceId, dbUser.id);
+  if (!ws) { res.status(404).json({ error: "Workspace not found" }); return; }
+
+  const vaultCtx = await loadVaultAiContext(workspaceId);
+  const report = await runCoherenceCheck(workspaceId, vaultCtx.catalog);
+  res.json(report);
+});
+
 router.get("/workspaces/:workspaceId/sections/:sectionId", requireAuth, async (req, res): Promise<void> => {
   const dbUser = await requireDbUser(req, res);
     if (!dbUser) return;
@@ -246,21 +261,6 @@ router.post("/workspaces/:workspaceId/sections/scaffold", requireAuth, async (re
 
   const sections = await scaffoldStandardSections(workspaceId);
   res.status(201).json(ListSectionsResponse.parse(sections.map(sectionToResponse)));
-});
-
-router.get("/workspaces/:workspaceId/sections/coherence", requireAuth, async (req, res): Promise<void> => {
-  const dbUser = await requireDbUser(req, res);
-  if (!dbUser) return;
-
-  const workspaceId = parseInt(String(req.params.workspaceId), 10);
-  if (isNaN(workspaceId)) { res.status(400).json({ error: "Invalid workspace ID" }); return; }
-
-  const ws = await verifyWorkspaceOwnership(workspaceId, dbUser.id);
-  if (!ws) { res.status(404).json({ error: "Workspace not found" }); return; }
-
-  const vaultCtx = await loadVaultAiContext(workspaceId);
-  const report = await runCoherenceCheck(workspaceId, vaultCtx.catalog);
-  res.json(report);
 });
 
 export default router;

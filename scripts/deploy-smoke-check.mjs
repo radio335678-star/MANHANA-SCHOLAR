@@ -2,13 +2,13 @@
 /**
  * Post-deploy smoke checks. Usage:
  *   node scripts/deploy-smoke-check.mjs
- *   node scripts/deploy-smoke-check.mjs https://your-railway-host.up.railway.app
+ *   node scripts/deploy-smoke-check.mjs https://your-api.onrender.com
  *   node scripts/deploy-smoke-check.mjs https://your-app.vercel.app
  */
 const base = process.argv[2]?.replace(/\/$/, "");
 if (!base) {
   console.error("Usage: node scripts/deploy-smoke-check.mjs <BASE_URL>");
-  console.error("  Railway: https://xxx.up.railway.app");
+  console.error("  Render:  https://xxx.onrender.com");
   console.error("  Vercel:  https://xxx.vercel.app (proxied /api)");
   process.exit(1);
 }

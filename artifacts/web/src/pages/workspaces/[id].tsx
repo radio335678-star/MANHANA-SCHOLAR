@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { motion } from "framer-motion";
 import { format } from "date-fns";
 import {
   useGetWorkspace,
@@ -51,6 +52,7 @@ import { WorkflowStepper } from "@/components/workspace/WorkflowStepper";
 import { PreThesisPanel } from "@/components/workspace/PreThesisPanel";
 import { MasterChartPanel } from "@/components/workspace/MasterChartPanel";
 import { WorkspaceCardMenu } from "@/components/workspace/WorkspaceCardMenu";
+import { OpenEditorBanner } from "@/components/workspace/OpenEditorBanner";
 
 const HUMANISER_LEVELS = [
   {
@@ -93,6 +95,17 @@ const LOCKED_WORKFLOW_STATES = new Set([
   "archived",
 ]);
 
+const HUMANISER_VISITED_KEY = (id: number) => `humaniser-visited-${id}`;
+
+const WORKSPACE_TABS = [
+  { id: "overview", label: "Overview", icon: LayoutList },
+  { id: "pre-thesis", label: "Pre-Thesis Setup", icon: Shield },
+  { id: "dataset", label: "Dataset", icon: FlaskConical },
+  { id: "humaniser", label: "AI Humaniser", icon: Brain },
+  { id: "vault", label: "Research Vault", icon: Database },
+  { id: "activity", label: "Activity", icon: Activity },
+] as const;
+
 export default function WorkspaceDetail({ id }: { id: string }) {
   const workspaceId = parseInt(id, 10);
   const { getToken } = useAuth();
@@ -101,6 +114,8 @@ export default function WorkspaceDetail({ id }: { id: string }) {
 
   const [humaniserLevel, setHumaniserLevel] = useState(2);
   const [exporting, setExporting] = useState(false);
+  const [humaniserVisited, setHumaniserVisited] = useState(false);
+  const [datasetReady, setDatasetReady] = useState(false);
 
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const initialTab = urlParams.get("tab") ?? "overview";
@@ -112,6 +127,47 @@ export default function WorkspaceDetail({ id }: { id: string }) {
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setHumaniserVisited(localStorage.getItem(HUMANISER_VISITED_KEY(workspaceId)) === "1");
+    }
+  }, [workspaceId]);
+
+  const fetchDatasetReady = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/workspaces/${workspaceId}/master-charts`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const charts = (await res.json()) as Array<{ currentVersion?: number }>;
+      setDatasetReady(
+        charts.length > 0 && charts.some((c) => (c.currentVersion ?? 0) > 0),
+      );
+    } catch {
+      setDatasetReady(false);
+    }
+  }, [workspaceId, getToken]);
+
+  useEffect(() => {
+    void fetchDatasetReady();
+  }, [fetchDatasetReady, activeTab]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === "humaniser") {
+      setHumaniserVisited(true);
+      localStorage.setItem(HUMANISER_VISITED_KEY(workspaceId), "1");
+    }
+    if (tab === "dataset") {
+      void fetchDatasetReady();
+    }
+    const next = new URL(window.location.href);
+    next.searchParams.set("tab", tab);
+    window.history.replaceState({}, "", next.pathname + next.search);
+  };
 
   const { data: workspace, isLoading: isWsLoading } = useGetWorkspace(workspaceId, {
     query: { enabled: !!workspaceId, queryKey: getGetWorkspaceQueryKey(workspaceId) },
@@ -181,17 +237,32 @@ export default function WorkspaceDetail({ id }: { id: string }) {
     (workspace as { workflowState?: string }).workflowState ?? "init";
   const isPreThesisLocked = LOCKED_WORKFLOW_STATES.has(workflowState);
   const preThesisLabel = isPreThesisLocked ? "Locked" : workflowState.replace("_", " ");
+  const vaultReady = (vaultSummary?.total ?? 0) > 0;
+  const workspaceReady =
+    isPreThesisLocked && datasetReady && humaniserVisited && vaultReady;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-28">
+      <OpenEditorBanner
+        visible={workspaceReady}
+        workspaceId={workspace.id}
+        signals={{
+          preThesisLocked: isPreThesisLocked,
+          datasetReady,
+          humaniserVisited,
+          vaultReady,
+        }}
+      />
+
       {/* Header */}
-      <div className="flex items-start gap-4">
+      <div className="relative flex items-start gap-4 rounded-2xl border border-border/60 bg-gradient-to-br from-primary/[0.06] via-background to-background p-5 sm:p-6 shadow-sm overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.08),transparent_55%)] pointer-events-none" />
         <Link href="/workspaces">
-          <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground mt-0.5">
+          <Button variant="ghost" size="icon" className="relative z-10 shrink-0 text-muted-foreground hover:text-foreground mt-0.5">
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <div className="flex-1 min-w-0 space-y-2">
+        <div className="relative z-10 flex-1 min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="font-medium">{workspace.domain}</Badge>
             {workspace.qualification && (
@@ -242,7 +313,7 @@ export default function WorkspaceDetail({ id }: { id: string }) {
           </div>
           <WorkflowStepper currentState={workflowState} />
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="relative z-10 flex items-center gap-2 shrink-0">
           <WorkspaceCardMenu
             workspaceId={workspace.id}
             workspaceTitle={workspace.title}
@@ -300,7 +371,10 @@ export default function WorkspaceDetail({ id }: { id: string }) {
             color: isPreThesisLocked ? "text-green-600" : "text-muted-foreground",
           },
         ].map((stat) => (
-          <Card key={stat.label} className="border-border shadow-sm">
+          <Card
+            key={stat.label}
+            className="border-border shadow-sm border-l-4 border-l-primary/30 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+          >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{stat.label}</span>
@@ -314,28 +388,48 @@ export default function WorkspaceDetail({ id }: { id: string }) {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full justify-start bg-transparent border-b border-border rounded-none h-auto p-0 gap-0">
-          {[
-            { id: "overview", label: "Overview", icon: <LayoutList className="w-3.5 h-3.5" /> },
-            { id: "pre-thesis", label: "Pre-Thesis Setup", icon: <Shield className="w-3.5 h-3.5" /> },
-            { id: "dataset", label: "Dataset", icon: <FlaskConical className="w-3.5 h-3.5" /> },
-            { id: "humaniser", label: "AI Humaniser", icon: <Brain className="w-3.5 h-3.5" /> },
-            { id: "vault", label: "Research Vault", icon: <Database className="w-3.5 h-3.5" /> },
-            { id: "activity", label: "Activity", icon: <Activity className="w-3.5 h-3.5" /> },
-          ].map((tab) => (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              className="flex items-center gap-1.5 px-4 py-3 text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {tab.icon} {tab.label}
-            </TabsTrigger>
-          ))}
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="relative w-full justify-start bg-background/80 backdrop-blur-sm border border-border rounded-xl h-auto p-1 gap-0 shadow-sm">
+          {WORKSPACE_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const tabComplete =
+              (tab.id === "pre-thesis" && isPreThesisLocked) ||
+              (tab.id === "dataset" && datasetReady) ||
+              (tab.id === "humaniser" && humaniserVisited) ||
+              (tab.id === "vault" && vaultReady);
+            return (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className="relative flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-sm rounded-lg border-0 data-[state=active]:bg-transparent data-[state=active]:shadow-none font-medium text-muted-foreground hover:text-foreground transition-colors data-[state=active]:text-primary"
+              >
+                {activeTab === tab.id && (
+                  <motion.span
+                    layoutId="workspaceTabIndicator"
+                    className="absolute inset-0 rounded-lg bg-primary/10 border border-primary/20"
+                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  {tabComplete && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Complete" />
+                  )}
+                </span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
-        {/* Overview Tab */}
         <TabsContent value="overview" className="mt-6 space-y-6">
+          <motion.div
+            key="tab-overview"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+            className="space-y-6"
+          >
           {/* Progress Bar */}
           <div className="space-y-3 p-5 bg-card border border-border rounded-xl shadow-sm">
             <div className="flex items-center justify-between text-sm">
@@ -417,11 +511,19 @@ export default function WorkspaceDetail({ id }: { id: string }) {
               )}
             </div>
           </div>
+          </motion.div>
         </TabsContent>
 
         {/* Pre-Thesis Setup Tab */}
         <TabsContent value="pre-thesis" className="mt-6 space-y-6">
-          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm">
+          <motion.div
+            key="tab-pre-thesis"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+            className="space-y-6"
+          >
+          <div className="flex items-start gap-3 p-4 bg-blue-50/80 border border-blue-100 rounded-xl text-sm shadow-sm">
             <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
             <div className="text-blue-700">
               Build your pre-thesis reference MD with live university guidelines, resolve conflicts, then lock-in.
@@ -436,27 +538,41 @@ export default function WorkspaceDetail({ id }: { id: string }) {
             onLocked={() => {
               queryClient.invalidateQueries({ queryKey: getGetWorkspaceQueryKey(workspaceId) });
               queryClient.invalidateQueries({ queryKey: getGetVaultSummaryQueryKey(workspaceId) });
-              setActiveTab("dataset");
               const next = new URL(window.location.href);
-              next.searchParams.set("tab", "dataset");
               next.searchParams.set("datasetGuide", "1");
               window.history.replaceState({}, "", next.pathname + next.search);
+              handleTabChange("dataset");
             }}
           />
+          </motion.div>
         </TabsContent>
 
         {/* Dataset / Master Chart Tab */}
         <TabsContent value="dataset" className="mt-6 space-y-6">
+          <motion.div
+            key="tab-dataset"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+          >
           <MasterChartPanel
             workspaceId={workspaceId}
             workflowState={workflowState}
             showGuide={showDatasetGuide}
           />
+          </motion.div>
         </TabsContent>
 
         {/* AI Humaniser Tab */}
         <TabsContent value="humaniser" className="mt-6 space-y-6">
-          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg text-sm">
+          <motion.div
+            key="tab-humaniser"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+            className="space-y-6"
+          >
+          <div className="flex items-start gap-3 p-4 bg-amber-50/80 border border-amber-100 rounded-xl text-sm shadow-sm">
             <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
             <div className="text-amber-700">
               The Humaniser shapes how the AI writes your thesis. Higher levels produce more distinctive, natural academic prose. Set this before generating sections — it applies globally to this workspace.
@@ -528,10 +644,17 @@ export default function WorkspaceDetail({ id }: { id: string }) {
               </button>
             ))}
           </div>
+          </motion.div>
         </TabsContent>
 
         {/* Vault Tab */}
         <TabsContent value="vault" className="mt-6">
+          <motion.div
+            key="tab-vault"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+          >
           <div className="grid sm:grid-cols-3 gap-6">
             <Card className="border-border shadow-sm">
               <CardHeader className="pb-2">
@@ -576,10 +699,18 @@ export default function WorkspaceDetail({ id }: { id: string }) {
               </Button>
             </Link>
           </div>
+          </motion.div>
         </TabsContent>
 
         {/* Activity Tab */}
         <TabsContent value="activity" className="mt-6">
+          <motion.div
+            key="tab-activity"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+            className="space-y-4"
+          >
           <div className="space-y-4">
             <h3 className="font-serif font-semibold">Workspace Information</h3>
             <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden divide-y divide-border">
@@ -620,6 +751,7 @@ export default function WorkspaceDetail({ id }: { id: string }) {
               </div>
             </div>
           </div>
+          </motion.div>
         </TabsContent>
       </Tabs>
     </div>

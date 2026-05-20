@@ -132,7 +132,7 @@ export default function NewWorkspace() {
   const finishAndNavigate = async (workspaceId: number) => {
     queryClient.invalidateQueries({ queryKey: getListWorkspacesQueryKey() });
     await new Promise((r) => setTimeout(r, 800));
-    setLocation(`/workspaces/${workspaceId}?tab=pre-thesis&step=review&preview=overview`);
+    setLocation(`/workspaces/${workspaceId}?tab=pre-thesis&step=review&preview=document`);
   };
 
   const onSubmit = async (data: WorkspaceValues) => {

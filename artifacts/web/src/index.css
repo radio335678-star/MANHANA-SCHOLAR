@@ -1,4 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap');
+
+@keyframes open-editor-banner-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35), 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.open-editor-banner-glow {
+  animation: open-editor-banner-pulse 2.5s ease-in-out infinite;
+}
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";

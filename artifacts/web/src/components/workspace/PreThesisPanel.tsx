@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { checklistProgress, PRE_THESIS_CHECKLIST_ITEMS } from "@/lib/preThesisChecklist";
 import { usePreThesisBuildStream } from "@/hooks/usePreThesisBuildStream";
 import { PreThesisPreviewLayout } from "@/components/workspace/pre-thesis/PreThesisPreviewLayout";
+import { LockInGuide } from "@/components/workspace/pre-thesis/LockInGuide";
+import { celebrateLockIn } from "@/lib/celebrateLockIn";
 
 type PreThesisData = {
   workflowState: string;
@@ -67,6 +70,7 @@ export function PreThesisPanel({
   const { getToken } = useAuth();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+  const lockInRef = useRef<HTMLButtonElement>(null);
   const [data, setData] = useState<PreThesisData | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -220,6 +224,7 @@ export function PreThesisPanel({
           description: "Your setup is locked and ready for the Dataset step.",
         });
       } else {
+        void celebrateLockIn();
         toast({
           title: "Pre-thesis locked",
           description: body.vaultUploadPending
@@ -288,6 +293,9 @@ export function PreThesisPanel({
   const { requiredDone, pct } = checklistProgress(checklist);
   const unresolvedCritical =
     data?.conflicts?.filter((c) => !c.resolved && c.severity === "critical") ?? [];
+  const buildComplete = (data?.buildVersion ?? 0) >= 2 && Boolean(draftMd.trim());
+  const buildBlurred = wizardStep >= 3 && buildComplete && !building;
+  const showLockGuide = wizardStep >= 3 && !isLocked && buildComplete;
   const handleDocumentUpdated = (payload: {
     resultJson: Record<string, unknown>;
     preThesisDraftMd: string;
@@ -312,20 +320,64 @@ export function PreThesisPanel({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2 items-center">
-        {WIZARD_STEPS.map((step, i) => (
-          <Badge
-            key={step}
-            variant={wizardStep === i ? "default" : "outline"}
-            className={cn("cursor-pointer", wizardStep > i && "border-green-500 text-green-700")}
-            onClick={() => !building && setWizardStep(i)}
-          >
-            {wizardStep > i ? <CheckCircle2 className="w-3 h-3 mr-1" /> : null}
-            {i + 1}. {step}
-          </Badge>
-        ))}
+      <LockInGuide workspaceId={workspaceId} visible={showLockGuide} lockInRef={lockInRef} />
+
+      <div className="relative flex flex-wrap items-center gap-0 pb-1">
+        {WIZARD_STEPS.map((step, i) => {
+          const done = wizardStep > i;
+          const current = wizardStep === i;
+          return (
+            <div key={step} className="flex items-center">
+              <button
+                type="button"
+                disabled={building}
+                onClick={() => setWizardStep(i)}
+                className={cn(
+                  "relative flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-all",
+                  "hover:scale-[1.02] active:scale-[0.98]",
+                  current && "text-primary-foreground",
+                  done && !current && "text-green-700",
+                  !done && !current && "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {current && (
+                  <motion.span
+                    layoutId="preThesisWizardActive"
+                    className="absolute inset-0 rounded-full bg-primary shadow-sm"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  {done ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <span
+                      className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border",
+                        current
+                          ? "border-primary-foreground/40 bg-primary-foreground/10"
+                          : "border-border bg-muted",
+                      )}
+                    >
+                      {i + 1}
+                    </span>
+                  )}
+                  {step}
+                </span>
+              </button>
+              {i < WIZARD_STEPS.length - 1 && (
+                <div
+                  className={cn(
+                    "w-6 sm:w-10 h-0.5 mx-0.5 rounded-full transition-colors",
+                    done ? "bg-green-500/60" : "bg-border",
+                  )}
+                />
+              )}
+            </div>
+          );
+        })}
         {data?.buildVersion === 2 && (
-          <Badge variant="secondary" className="ml-auto">
+          <Badge variant="secondary" className="ml-auto shrink-0">
             Build v2
             {data.completenessScore != null ? ` · ${data.completenessScore}% complete` : ""}
           </Badge>
@@ -408,11 +460,39 @@ export function PreThesisPanel({
 
       {wizardStep >= 2 && (
         <>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handleBuild} disabled={building || isLocked} className="gap-2">
-              {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-              Build Pre-Thesis (6 agents)
-            </Button>
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative">
+              <motion.div
+                animate={{
+                  filter: buildBlurred ? "blur(3px)" : "blur(0px)",
+                  opacity: buildBlurred ? 0.55 : 1,
+                }}
+                transition={{ duration: 0.4 }}
+              >
+                <Button
+                  onClick={handleBuild}
+                  disabled={building || isLocked || buildBlurred}
+                  className="gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                >
+                  {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                  Build Pre-Thesis (6 agents)
+                </Button>
+              </motion.div>
+              <AnimatePresence>
+                {buildBlurred && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
+                  >
+                    <span className="text-[10px] sm:text-xs font-medium px-2 py-1 rounded-full bg-background/90 border border-border shadow-sm text-muted-foreground whitespace-nowrap">
+                      Build complete — proceed to Lock-In
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <Button
               variant="outline"
               onClick={async () => {
@@ -442,6 +522,7 @@ export function PreThesisPanel({
             </Button>
             {!isLocked ? (
               <Button
+                ref={lockInRef}
                 variant="default"
                 onClick={handleLock}
                 disabled={
@@ -457,7 +538,10 @@ export function PreThesisPanel({
                     ? "Wait for the AI assistant to finish"
                     : "Preview reflects your latest AI-approved structure"
                 }
-                className="gap-2"
+                className={cn(
+                  "gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform",
+                  showLockGuide && "ring-2 ring-primary/40 animate-pulse",
+                )}
               >
                 {locking ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -500,59 +584,81 @@ export function PreThesisPanel({
           )}
 
           {wizardStep >= 3 && (
-            <div className="space-y-4">
-              {data?.conflicts
-                ?.filter((c) => !c.resolved)
-                .map((c) => (
-                  <div
-                    key={c.id}
-                    className="p-3 border border-amber-200 bg-amber-50 rounded-lg text-sm"
-                  >
-                    <div className="flex gap-2 items-start">
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
-                      <div className="flex-1">
-                        <strong>{c.fieldKey}</strong>: template {c.templateValue} vs live{" "}
-                        {c.liveValue}
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={isLocked}
-                            onClick={() => void resolveConflict(c.id, c.templateValue ?? "")}
-                          >
-                            Use template
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={isLocked}
-                            onClick={() => void resolveConflict(c.id, c.liveValue ?? "")}
-                          >
-                            Use live
-                          </Button>
+            <div className="lg:grid lg:grid-cols-5 gap-6">
+              <div className="lg:col-span-2 space-y-4">
+                {unresolvedCritical.length > 0 && (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Resolve critical conflicts before locking in.
+                  </p>
+                )}
+                {data?.conflicts
+                  ?.filter((c) => !c.resolved)
+                  .map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-3 border border-amber-200 bg-amber-50 rounded-lg text-sm"
+                    >
+                      <div className="flex gap-2 items-start">
+                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                        <div className="flex-1">
+                          <strong>{c.fieldKey}</strong>: template {c.templateValue} vs live{" "}
+                          {c.liveValue}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isLocked}
+                              onClick={() => void resolveConflict(c.id, c.templateValue ?? "")}
+                            >
+                              Use template
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isLocked}
+                              onClick={() => void resolveConflict(c.id, c.liveValue ?? "")}
+                            >
+                              Use live
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  ))}
+                {!isLocked && buildComplete && (
+                  <div className="hidden lg:block p-4 rounded-xl border border-primary/15 bg-primary/5 text-sm text-muted-foreground">
+                    <p>
+                      Review your document preview. Satisfied? Click <strong>Lock-In</strong>. Need
+                      edits? Use <strong>Customize with AI</strong> in the preview panel.
+                    </p>
                   </div>
-                ))}
+                )}
+              </div>
 
               {data && (
-                <PreThesisPreviewLayout
-                  workspaceId={workspaceId}
-                  data={{
-                    resultJson: data.resultJson,
-                    sources: data.sources,
-                    warnings: data.warnings,
-                    completenessScore: data.completenessScore,
-                  }}
-                  previewTab={previewTab}
-                  onPreviewTabChange={setPreviewTab}
-                  scrollAnchor={scrollAnchor}
-                  onScrollAnchorChange={setScrollAnchor}
-                  disabled={isLocked}
-                  onDocumentUpdated={handleDocumentUpdated}
-                  onStreamingChange={setAiStreaming}
-                />
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35 }}
+                  className="lg:col-span-3 rounded-2xl border border-border bg-card shadow-lg overflow-hidden"
+                >
+                  <PreThesisPreviewLayout
+                    workspaceId={workspaceId}
+                    data={{
+                      resultJson: data.resultJson,
+                      sources: data.sources,
+                      warnings: data.warnings,
+                      completenessScore: data.completenessScore,
+                    }}
+                    previewTab={previewTab}
+                    onPreviewTabChange={setPreviewTab}
+                    scrollAnchor={scrollAnchor}
+                    onScrollAnchorChange={setScrollAnchor}
+                    disabled={isLocked}
+                    onDocumentUpdated={handleDocumentUpdated}
+                    onStreamingChange={setAiStreaming}
+                  />
+                </motion.div>
               )}
             </div>
           )}

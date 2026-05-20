@@ -70,7 +70,6 @@ export function PreThesisPanel({
   const { getToken } = useAuth();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
-  const lockInRef = useRef<HTMLButtonElement>(null);
   const [data, setData] = useState<PreThesisData | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -281,21 +280,6 @@ export function PreThesisPanel({
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  const isLocked = data?.isLocked ?? false;
-  const { requiredDone, pct } = checklistProgress(checklist);
-  const unresolvedCritical =
-    data?.conflicts?.filter((c) => !c.resolved && c.severity === "critical") ?? [];
-  const buildComplete = (data?.buildVersion ?? 0) >= 2 && Boolean(draftMd.trim());
-  const buildBlurred = wizardStep >= 3 && buildComplete && !building;
-  const showLockGuide = wizardStep >= 3 && !isLocked && buildComplete;
   const handleDocumentUpdated = (payload: {
     resultJson: Record<string, unknown>;
     preThesisDraftMd: string;
@@ -312,81 +296,89 @@ export function PreThesisPanel({
         : prev,
     );
     setDraftMd(payload.preThesisDraftMd);
-    toast({
-      title: "Document updated",
-      description: payload.summary,
-    });
+    toast({ title: "Document updated", description: payload.summary });
   };
 
-  return (
-    <div className="space-y-6">
-      <LockInGuide workspaceId={workspaceId} visible={showLockGuide} lockInRef={lockInRef} />
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
-      <div className="relative flex flex-wrap items-center gap-0 pb-1">
-        {WIZARD_STEPS.map((step, i) => {
-          const done = wizardStep > i;
-          const current = wizardStep === i;
-          return (
-            <div key={step} className="flex items-center">
-              <button
-                type="button"
-                disabled={building}
-                onClick={() => setWizardStep(i)}
-                className={cn(
-                  "relative flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium transition-all",
-                  "hover:scale-[1.02] active:scale-[0.98]",
-                  current && "text-primary-foreground",
-                  done && !current && "text-green-700",
-                  !done && !current && "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {current && (
-                  <motion.span
-                    layoutId="preThesisWizardActive"
-                    className="absolute inset-0 rounded-full bg-primary shadow-sm"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+  const isLocked = data?.isLocked ?? false;
+  const { requiredDone, pct } = checklistProgress(checklist);
+  const unresolvedCritical =
+    data?.conflicts?.filter((c) => !c.resolved && c.severity === "critical") ?? [];
+  const buildComplete = (data?.buildVersion ?? 0) >= 2 && Boolean(draftMd.trim());
+  const buildBlurred = wizardStep >= 3 && buildComplete && !building;
+  const showLockGuide = wizardStep >= 3 && !isLocked && buildComplete;
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Wizard Stepper ─────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <div className="flex items-center">
+          {WIZARD_STEPS.map((step, i) => {
+            const done = wizardStep > i;
+            const current = wizardStep === i;
+            return (
+              <div key={step} className="flex items-center flex-1 last:flex-none">
+                {/* Step node */}
+                <button
+                  type="button"
+                  disabled={building}
+                  onClick={() => !building && setWizardStep(i)}
+                  className="flex flex-col items-center gap-1 group focus:outline-none"
+                >
+                  <div
+                    className={cn(
+                      "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all",
+                      done && "bg-primary/10 border-primary text-primary",
+                      current && "bg-primary border-primary text-primary-foreground shadow-md ring-4 ring-primary/20",
+                      !done && !current && "bg-background border-border text-muted-foreground",
+                    )}
+                  >
+                    {done ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium leading-none whitespace-nowrap",
+                      current ? "text-primary" : done ? "text-primary/70" : "text-muted-foreground",
+                    )}
+                  >
+                    {step}
+                  </span>
+                </button>
+                {/* Connector line (not after last step) */}
+                {i < WIZARD_STEPS.length - 1 && (
+                  <div
+                    className={cn(
+                      "flex-1 h-px mx-1 mb-4 rounded-full transition-colors",
+                      done ? "bg-primary/50" : "bg-border",
+                    )}
                   />
                 )}
-                <span className="relative z-10 flex items-center gap-1.5">
-                  {done ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <span
-                      className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border",
-                        current
-                          ? "border-primary-foreground/40 bg-primary-foreground/10"
-                          : "border-border bg-muted",
-                      )}
-                    >
-                      {i + 1}
-                    </span>
-                  )}
-                  {step}
-                </span>
-              </button>
-              {i < WIZARD_STEPS.length - 1 && (
-                <div
-                  className={cn(
-                    "w-6 sm:w-10 h-0.5 mx-0.5 rounded-full transition-colors",
-                    done ? "bg-green-500/60" : "bg-border",
-                  )}
-                />
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
+        </div>
+        {/* Build version badge on its own line */}
         {data?.buildVersion === 2 && (
-          <Badge variant="secondary" className="ml-auto shrink-0">
-            Build v2
-            {data.completenessScore != null ? ` · ${data.completenessScore}% complete` : ""}
-          </Badge>
+          <div className="flex justify-end">
+            <Badge variant="secondary" className="text-xs">
+              Build v2{data.completenessScore != null ? ` · ${data.completenessScore}% complete` : ""}
+            </Badge>
+          </div>
         )}
       </div>
 
+      {/* ── Step 0: Setup ──────────────────────────────────────────── */}
       {wizardStep === 0 && (
-        <div className="space-y-4 p-4 border rounded-xl bg-card">
-          <h3 className="font-serif font-semibold">Step 1 — Scholar & study context</h3>
+        <div className="space-y-4 p-5 border border-border rounded-xl bg-card">
+          <h3 className="font-serif font-semibold text-base">Step 1 — Scholar & study context</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Candidate name</Label>
@@ -423,12 +415,12 @@ export function PreThesisPanel({
         </div>
       )}
 
+      {/* ── Step 1: Synopsis ───────────────────────────────────────── */}
       {wizardStep === 1 && (
-        <div className="space-y-4 p-4 border rounded-xl bg-card">
-          <h3 className="font-serif font-semibold">Step 2 — Upload synopsis (recommended)</h3>
+        <div className="space-y-4 p-5 border border-border rounded-xl bg-card">
+          <h3 className="font-serif font-semibold text-base">Step 2 — Upload synopsis (recommended)</h3>
           <p className="text-sm text-muted-foreground">
-            Upload your approved synopsis (DOCX/TXT) for study-specific chapter blueprints like the
-            example PRE-REFERENCE file.
+            Upload your approved synopsis (DOCX/TXT) for study-specific chapter blueprints.
           </p>
           <input
             ref={fileRef}
@@ -440,59 +432,116 @@ export function PreThesisPanel({
               if (f) void handleSynopsisUpload(f);
             }}
           />
-          <Button
-            variant="outline"
-            disabled={isLocked || uploading}
-            onClick={() => fileRef.current?.click()}
-            className="gap-2"
-          >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Upload synopsis
-          </Button>
-          {data?.hasSynopsis && (
-            <p className="text-sm text-green-700 flex items-center gap-1">
-              <CheckCircle2 className="w-4 h-4" /> Synopsis on file
-            </p>
-          )}
+          <div className="flex flex-wrap gap-3 items-center">
+            <Button
+              variant="outline"
+              disabled={isLocked || uploading}
+              onClick={() => fileRef.current?.click()}
+              className="gap-2"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Upload synopsis
+            </Button>
+            {data?.hasSynopsis && (
+              <span className="text-sm text-green-700 flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> Synopsis on file
+              </span>
+            )}
+          </div>
           <Button onClick={() => setWizardStep(2)}>Continue to Build</Button>
         </div>
       )}
 
+      {/* ── Steps 2+: Build, Review, Lock ──────────────────────────── */}
       {wizardStep >= 2 && (
         <>
-          <div className="flex flex-wrap gap-2 items-center">
-            <div className="relative">
-              <motion.div
-                animate={{
-                  filter: buildBlurred ? "blur(3px)" : "blur(0px)",
-                  opacity: buildBlurred ? 0.55 : 1,
-                }}
-                transition={{ duration: 0.4 }}
-              >
-                <Button
-                  onClick={handleBuild}
-                  disabled={building || isLocked || buildBlurred}
-                  className="gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform"
-                >
-                  {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                  Build Pre-Thesis (6 agents)
-                </Button>
-              </motion.div>
-              <AnimatePresence>
-                {buildBlurred && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
-                  >
-                    <span className="text-[10px] sm:text-xs font-medium px-2 py-1 rounded-full bg-background/90 border border-border shadow-sm text-muted-foreground whitespace-nowrap">
-                      Build complete — proceed to Lock-In
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+          {/* ── Checklist card (shown before buttons so user fills first) ── */}
+          {!isLocked && (
+            <div className="border border-border rounded-xl bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border">
+                <h4 className="font-serif font-semibold text-sm">Pre-Thesis Checklist</h4>
+                <span className="text-xs text-muted-foreground font-medium">{pct}% complete</span>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {PRE_THESIS_CHECKLIST_ITEMS.map((item) => {
+                    const checked = checklist[item.id] ?? false;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={isLocked}
+                        onClick={() => {
+                          const next = { ...checklist, [item.id]: !checked };
+                          setChecklist(next);
+                          void savePatch({ preThesisChecklist: next });
+                        }}
+                        className={cn(
+                          "flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all",
+                          checked
+                            ? "border-primary/40 bg-primary/5"
+                            : "border-border bg-background hover:border-primary/30",
+                          isLocked && "opacity-60 cursor-not-allowed",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center",
+                            checked ? "bg-primary border-primary" : "border-border",
+                          )}
+                        >
+                          {checked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium leading-tight">{item.label}</span>
+                          {item.required && (
+                            <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Required
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <Progress value={pct} className="h-1.5" />
+              </div>
             </div>
+          )}
+
+          {/* Locked checklist summary */}
+          {isLocked && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-green-200 bg-green-50 text-sm text-green-800">
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>
+                Pre-thesis locked — checklist frozen.
+                {data?.preThesisMdHash && (
+                  <> SHA-256: <code className="text-xs">{data.preThesisMdHash.slice(0, 16)}…</code></>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* ── Action buttons ──────────────────────────────────────── */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Build button — dimmed when build already done */}
+            <Button
+              onClick={handleBuild}
+              disabled={building || isLocked || buildBlurred}
+              className={cn("gap-2 transition-opacity", buildBlurred && "opacity-30 cursor-not-allowed")}
+            >
+              {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+              Build Pre-Thesis (6 agents)
+            </Button>
+
+            {/* "Build complete" indicator replaces the blurred button's meaning */}
+            {buildBlurred && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                Build complete
+              </span>
+            )}
+
             <Button
               variant="outline"
               onClick={async () => {
@@ -517,12 +566,13 @@ export function PreThesisPanel({
             >
               <RefreshCw className="w-4 h-4" /> Re-Check Live
             </Button>
+
             <Button variant="outline" onClick={downloadDocx} className="gap-2">
               <Download className="w-4 h-4" /> Download DOCX
             </Button>
+
             {!isLocked ? (
               <Button
-                ref={lockInRef}
                 variant="default"
                 onClick={handleLock}
                 disabled={
@@ -539,15 +589,11 @@ export function PreThesisPanel({
                     : "Preview reflects your latest AI-approved structure"
                 }
                 className={cn(
-                  "gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform",
-                  showLockGuide && "ring-2 ring-primary/40 animate-pulse",
+                  "gap-2",
+                  showLockGuide && "ring-2 ring-primary/40",
                 )}
               >
-                {locking ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Lock className="w-4 h-4" />
-                )}{" "}
+                {locking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                 Lock-In
               </Button>
             ) : (
@@ -557,22 +603,17 @@ export function PreThesisPanel({
             )}
           </div>
 
-          {isLocked && data?.preThesisMdHash && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 flex items-center gap-2">
-              <Lock className="w-4 h-4 shrink-0" />
-              Locked — SHA-256: <code className="text-xs">{data.preThesisMdHash.slice(0, 16)}…</code>
-            </div>
-          )}
-
+          {/* ── Warnings ────────────────────────────────────────────── */}
           {data?.warnings?.map((w, i) => (
             <div
               key={i}
-              className="p-2 border border-amber-200 bg-amber-50 rounded text-sm text-amber-900"
+              className="p-3 border border-amber-200 bg-amber-50 rounded-lg text-sm text-amber-900"
             >
               {w}
             </div>
           ))}
 
+          {/* ── Build telemetry log ─────────────────────────────────── */}
           {building && telemetry.length > 0 && (
             <div className="p-4 border rounded-lg bg-card space-y-1 max-h-48 overflow-y-auto font-mono text-xs">
               {telemetry.map((t, i) => (
@@ -583,64 +624,56 @@ export function PreThesisPanel({
             </div>
           )}
 
+          {/* ── Review step content ─────────────────────────────────── */}
           {wizardStep >= 3 && (
-            <div className="lg:grid lg:grid-cols-5 gap-6">
-              <div className="lg:col-span-2 space-y-4">
-                {unresolvedCritical.length > 0 && (
-                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    Resolve critical conflicts before locking in.
-                  </p>
-                )}
-                {data?.conflicts
-                  ?.filter((c) => !c.resolved)
-                  .map((c) => (
-                    <div
-                      key={c.id}
-                      className="p-3 border border-amber-200 bg-amber-50 rounded-lg text-sm"
-                    >
-                      <div className="flex gap-2 items-start">
-                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
-                        <div className="flex-1">
-                          <strong>{c.fieldKey}</strong>: template {c.templateValue} vs live{" "}
-                          {c.liveValue}
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={isLocked}
-                              onClick={() => void resolveConflict(c.id, c.templateValue ?? "")}
-                            >
-                              Use template
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={isLocked}
-                              onClick={() => void resolveConflict(c.id, c.liveValue ?? "")}
-                            >
-                              Use live
-                            </Button>
-                          </div>
+            <div className="space-y-4">
+              {/* Conflict resolution */}
+              {unresolvedCritical.length > 0 && (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+                  Resolve critical conflicts below before locking in.
+                </p>
+              )}
+              {data?.conflicts
+                ?.filter((c) => !c.resolved)
+                .map((c) => (
+                  <div key={c.id} className="p-3 border border-amber-200 bg-amber-50 rounded-lg text-sm">
+                    <div className="flex gap-2 items-start">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                      <div className="flex-1">
+                        <strong>{c.fieldKey}</strong>: template "{c.templateValue}" vs live "{c.liveValue}"
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isLocked}
+                            onClick={() => void resolveConflict(c.id, c.templateValue ?? "")}
+                          >
+                            Use template
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isLocked}
+                            onClick={() => void resolveConflict(c.id, c.liveValue ?? "")}
+                          >
+                            Use live
+                          </Button>
                         </div>
                       </div>
                     </div>
-                  ))}
-                {!isLocked && buildComplete && (
-                  <div className="hidden lg:block p-4 rounded-xl border border-primary/15 bg-primary/5 text-sm text-muted-foreground">
-                    <p>
-                      Review your document preview. Satisfied? Click <strong>Lock-In</strong>. Need
-                      edits? Use <strong>Customize with AI</strong> in the preview panel.
-                    </p>
                   </div>
-                )}
-              </div>
+                ))}
 
+              {/* Lock-In callout — inline, above the preview */}
+              <LockInGuide workspaceId={workspaceId} visible={showLockGuide} />
+
+              {/* Document preview — full width */}
               {data && (
                 <motion.div
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35 }}
-                  className="lg:col-span-3 rounded-2xl border border-border bg-card shadow-lg overflow-hidden"
+                  transition={{ duration: 0.3 }}
+                  className="rounded-2xl border border-border bg-card shadow-md overflow-hidden"
                 >
                   <PreThesisPreviewLayout
                     workspaceId={workspaceId}
@@ -662,66 +695,21 @@ export function PreThesisPanel({
               )}
             </div>
           )}
+
+          {/* ── Research notes ──────────────────────────────────────── */}
+          <div className="space-y-2">
+            <Label>Research notes (locked context for AI)</Label>
+            <Textarea
+              value={notes}
+              disabled={isLocked}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => void savePatch({ researchNotes: notes })}
+              rows={4}
+              className="text-sm"
+            />
+          </div>
         </>
       )}
-
-      <div className="grid md:grid-cols-2 gap-4">
-        {PRE_THESIS_CHECKLIST_ITEMS.map((item) => {
-          const checked = checklist[item.id] ?? false;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              disabled={isLocked}
-              onClick={() => {
-                const next = { ...checklist, [item.id]: !checked };
-                setChecklist(next);
-                void savePatch({ preThesisChecklist: next });
-              }}
-              className={cn(
-                "flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                checked ? "border-primary bg-primary/5" : "border-border",
-                isLocked && "opacity-60 cursor-not-allowed",
-              )}
-            >
-              <div
-                className={cn(
-                  "w-5 h-5 rounded-full border-2 shrink-0 mt-0.5",
-                  checked ? "bg-primary border-primary" : "border-border",
-                )}
-              />
-              <div>
-                <span className="font-medium text-sm">{item.label}</span>
-                {item.required && (
-                  <Badge variant="outline" className="ml-2 text-xs">
-                    Required
-                  </Badge>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span>Checklist</span>
-          <span>{pct}%</span>
-        </div>
-        <Progress value={pct} className="h-2" />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Research notes (locked context for AI)</Label>
-        <Textarea
-          value={notes}
-          disabled={isLocked}
-          onChange={(e) => setNotes(e.target.value)}
-          onBlur={() => void savePatch({ researchNotes: notes })}
-          rows={4}
-          className="text-sm"
-        />
-      </div>
     </div>
   );
 }

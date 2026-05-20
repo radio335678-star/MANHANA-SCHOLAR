@@ -1,5 +1,14 @@
 # Supabase Auth URL configuration (production)
 
+## Direct email/password sign-in (no confirmation email)
+
+**Dashboard → Authentication → Providers → Email:**
+
+- Enable **Email** provider
+- Turn **OFF** “Confirm email” so `signInWithPassword` / `signUp` return a session immediately (matches `supabase/config.toml` → `enable_confirmations = false`)
+
+## Redirect URLs
+
 After Vercel deploy, update:
 
 **Dashboard:** https://supabase.com/dashboard/project/lziejvvfmreprdnuifwx/auth/url-configuration

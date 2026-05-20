@@ -15,6 +15,7 @@
     "supabase:push": "supabase db push",
     "supabase:status": "supabase status",
     "supabase:verify": "node scripts/verify-supabase-env.mjs",
+    "supabase:reset-password": "node scripts/reset-auth-password.mjs",
     "deploy:smoke": "node scripts/deploy-smoke-check.mjs",
     "supabase:smoke": "pnpm --filter @workspace/api-server exec tsx src/scripts/supabase-smoke.ts",
     "db:seed": "tsx lib/db/src/seed.ts"

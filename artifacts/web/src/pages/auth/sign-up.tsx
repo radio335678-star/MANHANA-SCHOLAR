@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { formatAuthError } from "@/lib/authErrors";
 import { requireSupabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,7 @@ export default function SignUpPage() {
     });
     setLoading(false);
     if (signUpError) {
-      setError(signUpError.message);
+      setError(formatAuthError(signUpError.message, signUpError.code));
       return;
     }
     if (data.session) {

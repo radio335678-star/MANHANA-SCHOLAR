@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { formatAuthError } from "@/lib/authErrors";
 import { requireSupabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ export default function SignInPage() {
     });
     setLoading(false);
     if (signInError) {
-      setError(signInError.message);
+      setError(formatAuthError(signInError.message, signInError.code));
       return;
     }
     setLocation("/dashboard");

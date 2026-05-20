@@ -55,6 +55,14 @@ curl https://YOUR-RENDER-HOST.onrender.com/api/healthz/ready
 
 **Redeploy Vercel** after changing `VITE_*` (baked in at build time).
 
+Use the **legacy anon JWT** (`eyJ...`) for `VITE_SUPABASE_ANON_KEY`, not `sb_publishable_`.
+
+If sign-in returns HTTP 400 / “Invalid login credentials”, reset the user password via Admin API (local `.env` with service role):
+
+```bash
+pnpm supabase:reset-password your@email.com 'YourNewPassword'
+```
+
 4. Optional on Render: `CORS_ALLOWED_ORIGINS=https://manhana-scholar.vercel.app`
 
 ## 4. Supabase Auth URLs

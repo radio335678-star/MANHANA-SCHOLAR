@@ -10,10 +10,10 @@ services:
     plan: free
     branch: main
     buildCommand: >-
+      export NODE_ENV=development &&
       corepack enable &&
       corepack prepare pnpm@9.15.4 --activate &&
-      export NODE_ENV=development &&
-      pnpm install --no-frozen-lockfile --filter @workspace/api-server... &&
+      pnpm install --no-frozen-lockfile --prod=false --filter @workspace/api-server... &&
       pnpm --filter @workspace/api-server run build
     startCommand: pnpm --filter @workspace/api-server start
     # Liveness only — /api/healthz/ready returns 503 until DATABASE_URL + Supabase env are set.

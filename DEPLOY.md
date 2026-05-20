@@ -45,7 +45,12 @@ curl https://YOUR-RAILWAY-HOST/api/healthz/ready
 
 ## 3. Vercel (frontend + API proxy)
 
-1. [vercel.com](https://vercel.com) → Add Project → import the same GitHub repo.
+**One-click import (team: shivakuma-s-projects):**
+
+https://vercel.com/new?repository=https://github.com/radio335678-star/MANHANA-SCHOLAR&teamSlug=shivakuma-s-projects
+
+1. Click **Continue with GitHub** and authorize if prompted.
+2. Confirm build settings (auto-read from [`vercel.json`](vercel.json)).
 2. Root directory: `/`. Settings are in [`vercel.json`](vercel.json).
 3. **Before first deploy**: edit `vercel.json` and replace `REPLACE_WITH_YOUR_RAILWAY_HOST` with your Railway hostname (no `https://`, e.g. `manthana-api-production.up.railway.app`).
 4. **Environment variables** (Project → Settings → Environment Variables):

@@ -3,7 +3,7 @@
   "installCommand": "corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm install",
   "buildCommand": "pnpm --filter @workspace/web run build",
   "outputDirectory": "artifacts/web/dist/public",
-  "framework": null,
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/api/:path*",

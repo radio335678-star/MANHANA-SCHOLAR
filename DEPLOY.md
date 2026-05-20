@@ -1,25 +1,22 @@
-# Production deploy: Vercel + Railway + Supabase
+# Production deploy: Vercel + Render + Supabase
 
-Deploy order: **Railway (API) → update `vercel.json` → Vercel (web) → Supabase Auth URLs**.
+Deploy order: **Render (API) → update `vercel.json` → Vercel (web) → Supabase Auth URLs**.
 
 ## 1. GitHub
 
-Push this repo (`Web-Scholar-Search` root) to GitHub. Connect the same repo to Railway and Vercel.
+Repo: https://github.com/radio335678-star/MANHANA-SCHOLAR
 
-```powershell
-git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git
-git push -u origin main
-```
+Never commit `.env`. Copy secrets from your local `.env` into Render/Vercel dashboards only.
 
-Never commit `.env`. Copy secrets from your local `.env` into platform dashboards only.
+## 2. Render (API only)
 
-## 2. Railway (API only)
+1. [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint** (or **Web Service**).
+2. Connect GitHub repo `MANHANA-SCHOLAR` — config is in [`render.yaml`](render.yaml).
+3. **Region:** Singapore (closest to Supabase Mumbai).
+4. **Plan:** Free for testing (sleeps after 15 min idle); **Starter ($7/mo)** for always-on + better SSE.
+5. **Environment variables** — copy from [`render.env.example`](render.env.example):
 
-1. [railway.app](https://railway.app) → New Project → Deploy from GitHub → select this repo.
-2. Root directory: `/` (repo root). Config is in [`railway.toml`](railway.toml).
-3. **Variables** (Settings → Variables):
-
-| Variable | Where |
+| Variable | Value |
 |----------|--------|
 | `NODE_ENV` | `production` |
 | `DATABASE_URL` | Supabase pooler URL (port 6543) |
@@ -33,36 +30,32 @@ Never commit `.env`. Copy secrets from your local `.env` into platform dashboard
 | `KIMI_PRIMARY_MODEL` | `kimi-k2.6` |
 | `KIMI_FALLBACK_MODELS` | `kimi-k2.5` |
 
-Do **not** set `VITE_*` on Railway. Railway sets `PORT` automatically.
+Do **not** set `VITE_*` on Render. Render sets `PORT` automatically.
 
-4. After deploy, copy the public URL (e.g. `https://manthana-api-production.up.railway.app`).
-5. Verify:
+6. After deploy, copy the public URL (e.g. `https://manthana-scholar-api.onrender.com`).
+7. Verify:
 
 ```bash
-curl https://YOUR-RAILWAY-HOST/api/healthz
-curl https://YOUR-RAILWAY-HOST/api/healthz/ready
+curl https://YOUR-RENDER-HOST.onrender.com/api/healthz
+curl https://YOUR-RENDER-HOST.onrender.com/api/healthz/ready
 ```
 
 ## 3. Vercel (frontend + API proxy)
 
-**One-click import (team: shivakuma-s-projects):**
+**Import:** https://vercel.com/new?repository=https://github.com/radio335678-star/MANHANA-SCHOLAR
 
-https://vercel.com/new?repository=https://github.com/radio335678-star/MANHANA-SCHOLAR&teamSlug=shivakuma-s-projects
-
-1. Click **Continue with GitHub** and authorize if prompted.
-2. Confirm build settings (auto-read from [`vercel.json`](vercel.json)).
-2. Root directory: `/`. Settings are in [`vercel.json`](vercel.json).
-3. **Before first deploy**: edit `vercel.json` and replace `REPLACE_WITH_YOUR_RAILWAY_HOST` with your Railway hostname (no `https://`, e.g. `manthana-api-production.up.railway.app`).
-4. **Environment variables** (Project → Settings → Environment Variables) — **required for Production and Preview**:
+1. Root directory: `/`. Settings in [`vercel.json`](vercel.json).
+2. **Edit `vercel.json`:** replace `REPLACE_WITH_YOUR_RENDER_HOST` with your Render hostname (e.g. `manthana-scholar-api.onrender.com`, no `https://`).
+3. **Environment variables** (Production + Preview):
 
 | Variable | Value |
 |----------|--------|
 | `VITE_SUPABASE_URL` | `https://lziejvvfmreprdnuifwx.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | Supabase → Settings → API → **anon** `public` key |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
 
-**Important:** Vite bakes `VITE_*` into the JS at **build time**. After adding or changing these, click **Redeploy** (a blank white page usually means `VITE_SUPABASE_ANON_KEY` was missing during build).
+**Redeploy Vercel** after changing `VITE_*` (baked in at build time).
 
-5. Deploy. Optional: set `CORS_ALLOWED_ORIGINS=https://YOUR-APP.vercel.app` on Railway if you call the API directly.
+4. Optional on Render: `CORS_ALLOWED_ORIGINS=https://manhana-scholar.vercel.app`
 
 ## 4. Supabase Auth URLs
 
@@ -70,36 +63,22 @@ https://vercel.com/new?repository=https://github.com/radio335678-star/MANHANA-SC
 
 | Field | Value |
 |-------|--------|
-| Site URL | `https://YOUR-APP.vercel.app` |
-| Redirect URLs | `https://YOUR-APP.vercel.app/**`, `http://localhost:22333/**` |
+| Site URL | `https://manhana-scholar.vercel.app` |
+| Redirect URLs | `https://manhana-scholar.vercel.app/**`, `http://localhost:22333/**` |
 
 ## 5. Smoke test
 
-**Automated API checks** (after Railway or Vercel deploy):
-
 ```bash
-pnpm deploy:smoke https://YOUR-RAILWAY-HOST.up.railway.app
-# or via Vercel proxy:
-pnpm deploy:smoke https://YOUR-APP.vercel.app
+pnpm deploy:smoke https://YOUR-RENDER-HOST.onrender.com
+pnpm deploy:smoke https://manhana-scholar.vercel.app
 ```
-
-**Manual UI checks:**
-
-1. Landing page on Vercel URL  
-2. Sign up / sign in  
-3. Dashboard and onboarding  
-4. Workspace → editor → chat (streaming)  
-5. Vault upload  
-6. DOCX export  
-
-Local API build verified: `/api/healthz/ready` returns `database`, `supabaseStorage`, and `supabaseAuth` all `true`.
 
 ## What runs where
 
 | Component | Platform |
 |-----------|----------|
 | React SPA | Vercel |
-| `/api/*` (proxied) | Vercel → Railway |
-| Express API | Railway |
-| Postgres, Auth, Storage | Supabase |
-| Kimi AI | Moonshot (via Railway env) |
+| `/api/*` (proxied) | Vercel → Render |
+| Express API | Render (Singapore) |
+| Postgres, Auth, Storage | Supabase (Mumbai) |
+| Kimi AI | Moonshot (via Render env) |

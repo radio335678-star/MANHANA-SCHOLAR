@@ -1,0 +1,28 @@
+# Render Blueprint — MANTHANA Scholar API (Express)
+# Dashboard: https://dashboard.render.com → New → Blueprint → connect this repo
+# Or: New Web Service → link GitHub → Render reads this file on sync.
+
+services:
+  - type: web
+    name: manthana-scholar-api
+    runtime: node
+    region: singapore
+    plan: free
+    branch: main
+    buildCommand: >-
+      corepack enable &&
+      corepack prepare pnpm@9.15.4 --activate &&
+      pnpm install --no-frozen-lockfile &&
+      pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server start
+    healthCheckPath: /api/healthz/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # Add in Render Dashboard (Environment):
+      # DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+      # SUPABASE_STORAGE_BUCKET, KIMI_API_KEY, KIMI_BASE_URL, MOONSHOT_WEB_SEARCH,
+      # KIMI_PRIMARY_MODEL, KIMI_FALLBACK_MODELS
+      # Optional: CORS_ALLOWED_ORIGINS=https://manhana-scholar.vercel.app

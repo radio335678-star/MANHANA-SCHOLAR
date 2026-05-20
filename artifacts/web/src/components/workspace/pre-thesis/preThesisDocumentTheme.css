@@ -1,0 +1,135 @@
+.pre-thesis-doc-root {
+  --pt-page-width: min(100%, 210mm);
+  --pt-page-min-height: 297mm;
+  --pt-margin-x: 1.5in;
+  --pt-margin-y: 1in;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #1a1a1a;
+  line-height: 1.5;
+}
+
+.pre-thesis-doc-scroll {
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 0.5rem;
+  padding: 1.5rem 1rem;
+  max-height: min(70vh, 900px);
+  overflow-y: auto;
+}
+
+@media (max-width: 1023px) {
+  .pre-thesis-doc-scroll {
+    max-height: min(55vh, 600px);
+  }
+}
+
+.pre-thesis-page {
+  width: var(--pt-page-width);
+  min-height: var(--pt-page-min-height);
+  margin: 0 auto 1.5rem;
+  padding: var(--pt-margin-y) var(--pt-margin-x);
+  background: #fff;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
+  page-break-after: always;
+}
+
+.pre-thesis-page:last-child {
+  margin-bottom: 0;
+}
+
+.pre-thesis-doc-title {
+  font-size: 14pt;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.75rem;
+  line-height: 1.35;
+}
+
+.pre-thesis-doc-subtitle {
+  font-size: 11pt;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.pre-thesis-doc-meta {
+  font-size: 10pt;
+  text-align: center;
+  color: #444;
+  margin-bottom: 1.5rem;
+}
+
+.pre-thesis-h2 {
+  font-size: 12pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 1.25rem 0 0.5rem;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0.25rem;
+}
+
+.pre-thesis-h3 {
+  font-size: 11pt;
+  font-weight: 700;
+  margin: 1rem 0 0.35rem;
+}
+
+.pre-thesis-note {
+  font-size: 10pt;
+  font-style: italic;
+  color: #555;
+  margin-bottom: 0.75rem;
+}
+
+.pre-thesis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10pt;
+  margin-bottom: 1rem;
+}
+
+.pre-thesis-table th,
+.pre-thesis-table td {
+  border: 1px solid #bbb;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.pre-thesis-table th {
+  background: #f5f5f5;
+  font-weight: 700;
+}
+
+.pre-thesis-ul {
+  margin: 0.35rem 0 0.75rem 1.25rem;
+  font-size: 10.5pt;
+}
+
+.pre-thesis-ul li {
+  margin-bottom: 0.2rem;
+}
+
+.pre-thesis-rule-list {
+  font-size: 10.5pt;
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.25rem;
+}
+
+@media print {
+  .pre-thesis-doc-scroll {
+    background: none;
+    padding: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .pre-thesis-page {
+    box-shadow: none;
+    margin: 0;
+  }
+}

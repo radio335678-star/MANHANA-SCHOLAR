@@ -20,6 +20,12 @@ export interface Section {
   /** @nullable */
   wordCount?: number | null;
   /** @nullable */
+  targetPages?: number | null;
+  /** @nullable */
+  minPages?: number | null;
+  /** @nullable */
+  maxPages?: number | null;
+  /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;

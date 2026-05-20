@@ -5,6 +5,7 @@ import {
   qualificationsTable,
   collegesTable,
   universitiesTable,
+  departmentsTable,
 } from "@workspace/db";
 import {
   ListDomainsResponse,
@@ -13,7 +14,7 @@ import {
   ListUniversitiesResponse,
   ListCollegesQueryParams,
 } from "@workspace/api-zod";
-import { eq } from "drizzle-orm";
+import { eq } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -48,6 +49,22 @@ router.get("/reference/universities", async (_req, res): Promise<void> => {
     .from(universitiesTable)
     .orderBy(universitiesTable.name);
   res.json(ListUniversitiesResponse.parse(universities));
+});
+
+router.get("/reference/departments", async (req, res): Promise<void> => {
+  const domain = typeof req.query.domain === "string" ? req.query.domain : undefined;
+  const query = db.select().from(departmentsTable).orderBy(departmentsTable.domain, departmentsTable.name);
+  const departments = domain ? await query.where(eq(departmentsTable.domain, domain)) : await query;
+  res.json(
+    departments.map((d) => ({
+      id: d.id,
+      domain: d.domain,
+      name: d.name,
+      slug: d.slug,
+      qualificationLevels: d.qualificationLevels,
+      regulatoryBody: d.regulatoryBody,
+    })),
+  );
 });
 
 export default router;

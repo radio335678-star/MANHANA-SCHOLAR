@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import {
@@ -21,8 +21,6 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2,
   ArrowLeft,
@@ -44,12 +42,15 @@ import {
   Shield,
   Zap,
   Edit3,
-  AlertCircle,
   Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
+import { WorkflowStepper } from "@/components/workspace/WorkflowStepper";
+import { PreThesisPanel } from "@/components/workspace/PreThesisPanel";
+import { MasterChartPanel } from "@/components/workspace/MasterChartPanel";
+import { WorkspaceCardMenu } from "@/components/workspace/WorkspaceCardMenu";
 
 const HUMANISER_LEVELS = [
   {
@@ -84,56 +85,13 @@ const HUMANISER_LEVELS = [
   },
 ];
 
-const PRE_THESIS_CHECKLIST = [
-  {
-    id: "title",
-    label: "Research Title Finalised",
-    description: "Title approved by guide and department",
-    required: true,
-  },
-  {
-    id: "protocol",
-    label: "Protocol Registered",
-    description: "CTRI/IEC protocol number obtained",
-    required: true,
-  },
-  {
-    id: "ethics",
-    label: "Ethics Clearance",
-    description: "IEC/IRB certificate in hand",
-    required: true,
-  },
-  {
-    id: "guide",
-    label: "Guide & Co-Guide Assigned",
-    description: "Names and designations confirmed",
-    required: true,
-  },
-  {
-    id: "university",
-    label: "University Guidelines Fetched",
-    description: "Format, font, margin, citation style downloaded",
-    required: true,
-  },
-  {
-    id: "synopsis",
-    label: "Synopsis Submitted",
-    description: "Synopsis approved and filed with university",
-    required: false,
-  },
-  {
-    id: "sample",
-    label: "Sample Size Calculated",
-    description: "Statistical justification documented",
-    required: true,
-  },
-  {
-    id: "inclusion",
-    label: "Inclusion/Exclusion Criteria Defined",
-    description: "Criteria documented in protocol",
-    required: true,
-  },
-];
+const LOCKED_WORKFLOW_STATES = new Set([
+  "locked_in",
+  "section_build",
+  "review",
+  "complete",
+  "archived",
+]);
 
 export default function WorkspaceDetail({ id }: { id: string }) {
   const workspaceId = parseInt(id, 10);
@@ -142,9 +100,18 @@ export default function WorkspaceDetail({ id }: { id: string }) {
   const { toast } = useToast();
 
   const [humaniserLevel, setHumaniserLevel] = useState(2);
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
-  const [notesText, setNotesText] = useState("");
   const [exporting, setExporting] = useState(false);
+
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const initialTab = urlParams.get("tab") ?? "overview";
+  const preThesisStep = urlParams.get("step");
+  const preThesisPreview = urlParams.get("preview") ?? "document";
+  const showDatasetGuide = urlParams.get("datasetGuide") === "1";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const { data: workspace, isLoading: isWsLoading } = useGetWorkspace(workspaceId, {
     query: { enabled: !!workspaceId, queryKey: getGetWorkspaceQueryKey(workspaceId) },
@@ -197,14 +164,23 @@ export default function WorkspaceDetail({ id }: { id: string }) {
   }
 
   if (!workspace) {
-    return <div className="p-8 text-center text-muted-foreground">Workspace not found</div>;
+    return (
+      <div className="p-8 text-center space-y-3">
+        <p className="text-muted-foreground">Workspace not found</p>
+        <Link href="/workspaces">
+          <Button variant="outline">Back to workspaces</Button>
+        </Link>
+      </div>
+    );
   }
 
   const completionPercent = progress?.percentComplete ?? 0;
   const totalWords = sections?.reduce((acc, s) => acc + (s.wordCount ?? 0), 0) ?? 0;
   const estPages = Math.ceil(totalWords / 250);
-  const checkedCount = Object.values(checkedItems).filter(Boolean).length;
-  const preThesisPercent = Math.round((checkedCount / PRE_THESIS_CHECKLIST.length) * 100);
+  const workflowState =
+    (workspace as { workflowState?: string }).workflowState ?? "init";
+  const isPreThesisLocked = LOCKED_WORKFLOW_STATES.has(workflowState);
+  const preThesisLabel = isPreThesisLocked ? "Locked" : workflowState.replace("_", " ");
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -245,6 +221,16 @@ export default function WorkspaceDetail({ id }: { id: string }) {
                 <PenTool className="w-3.5 h-3.5" /> Guide: {workspace.guideName}
               </span>
             )}
+            {workspace.coGuideName && (
+              <span className="flex items-center gap-1.5">
+                <PenTool className="w-3.5 h-3.5" /> Co-Guide: {workspace.coGuideName}
+              </span>
+            )}
+            {workspace.state && (
+              <span className="flex items-center gap-1.5">
+                {workspace.state}
+              </span>
+            )}
             <span className="flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5" /> Updated {format(new Date(workspace.updatedAt), "MMM d, yyyy")}
             </span>
@@ -254,8 +240,16 @@ export default function WorkspaceDetail({ id }: { id: string }) {
               </span>
             )}
           </div>
+          <WorkflowStepper currentState={workflowState} />
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <WorkspaceCardMenu
+            workspaceId={workspace.id}
+            workspaceTitle={workspace.title}
+            status={workspace.status}
+            redirectAfterDelete
+            alwaysVisible
+          />
           <Button
             variant="outline"
             size="sm"
@@ -300,10 +294,10 @@ export default function WorkspaceDetail({ id }: { id: string }) {
           },
           {
             label: "Pre-Thesis",
-            value: `${preThesisPercent}%`,
-            sub: `${checkedCount}/${PRE_THESIS_CHECKLIST.length} items`,
+            value: preThesisLabel,
+            sub: isPreThesisLocked ? "AI context locked" : "Complete setup & lock-in",
             icon: <Shield className="w-4 h-4 text-green-500" />,
-            color: "text-green-600",
+            color: isPreThesisLocked ? "text-green-600" : "text-muted-foreground",
           },
         ].map((stat) => (
           <Card key={stat.label} className="border-border shadow-sm">
@@ -320,11 +314,12 @@ export default function WorkspaceDetail({ id }: { id: string }) {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start bg-transparent border-b border-border rounded-none h-auto p-0 gap-0">
           {[
             { id: "overview", label: "Overview", icon: <LayoutList className="w-3.5 h-3.5" /> },
             { id: "pre-thesis", label: "Pre-Thesis Setup", icon: <Shield className="w-3.5 h-3.5" /> },
+            { id: "dataset", label: "Dataset", icon: <FlaskConical className="w-3.5 h-3.5" /> },
             { id: "humaniser", label: "AI Humaniser", icon: <Brain className="w-3.5 h-3.5" /> },
             { id: "vault", label: "Research Vault", icon: <Database className="w-3.5 h-3.5" /> },
             { id: "activity", label: "Activity", icon: <Activity className="w-3.5 h-3.5" /> },
@@ -429,81 +424,34 @@ export default function WorkspaceDetail({ id }: { id: string }) {
           <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm">
             <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
             <div className="text-blue-700">
-              Complete all required items before starting to write. MANTHANA uses these inputs as locked context for all AI-generated content — your sample size, ethics number, and drug names will be consistent across every section.
+              Build your pre-thesis reference MD with live university guidelines, resolve conflicts, then lock-in.
+              Locked content becomes the single source of truth for all AI writing.
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            {PRE_THESIS_CHECKLIST.map((item) => {
-              const isChecked = checkedItems[item.id] ?? false;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setCheckedItems((prev) => ({ ...prev, [item.id]: !isChecked }))}
-                  className={cn(
-                    "flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                    isChecked
-                      ? "border-primary bg-primary/5"
-                      : "border-border bg-card hover:border-primary/30"
-                  )}
-                >
-                  <div className={cn(
-                    "w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 transition-colors",
-                    isChecked ? "bg-primary" : "border-2 border-border"
-                  )}>
-                    {isChecked && <CheckCircle2 className="w-4 h-4 text-white" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("font-medium text-sm", isChecked ? "text-primary" : "text-foreground")}>
-                        {item.label}
-                      </span>
-                      {item.required && (
-                        <Badge variant="outline" className="text-xs border-red-200 text-red-600 bg-red-50">Required</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <PreThesisPanel
+            workspaceId={workspaceId}
+            initialWizardStep={preThesisStep === "review" ? 3 : undefined}
+            initialPreviewTab={preThesisPreview}
+            onLocked={() => {
+              queryClient.invalidateQueries({ queryKey: getGetWorkspaceQueryKey(workspaceId) });
+              queryClient.invalidateQueries({ queryKey: getGetVaultSummaryQueryKey(workspaceId) });
+              setActiveTab("dataset");
+              const next = new URL(window.location.href);
+              next.searchParams.set("tab", "dataset");
+              next.searchParams.set("datasetGuide", "1");
+              window.history.replaceState({}, "", next.pathname + next.search);
+            }}
+          />
+        </TabsContent>
 
-          <div className="p-5 bg-card border border-border rounded-xl shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif font-semibold">Pre-Thesis Completion</h3>
-              <span className={cn(
-                "text-sm font-bold",
-                preThesisPercent === 100 ? "text-green-600" : preThesisPercent >= 50 ? "text-amber-600" : "text-muted-foreground"
-              )}>
-                {preThesisPercent}%
-              </span>
-            </div>
-            <Progress value={preThesisPercent} className="h-2" />
-            {preThesisPercent === 100 ? (
-              <p className="text-xs text-green-600 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Pre-thesis setup complete. AI writing context is locked and ready.
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5" /> Complete all required items to lock AI context for consistent writing.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Research Notes (locked context for AI)</Label>
-            <Textarea
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
-              placeholder="Enter key details the AI should always know: sample size (e.g. n=80), drug name and dose (e.g. Triphala Churna 3g BD), ethics number (IEC/2024/XXX), study design, primary outcome measure…"
-              rows={6}
-              className="text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              This text is injected as system context into every AI generation and chat for this workspace.
-            </p>
-          </div>
+        {/* Dataset / Master Chart Tab */}
+        <TabsContent value="dataset" className="mt-6 space-y-6">
+          <MasterChartPanel
+            workspaceId={workspaceId}
+            workflowState={workflowState}
+            showGuide={showDatasetGuide}
+          />
         </TabsContent>
 
         {/* AI Humaniser Tab */}
@@ -640,6 +588,9 @@ export default function WorkspaceDetail({ id }: { id: string }) {
                 { label: "Domain", value: workspace.domain },
                 { label: "Qualification", value: workspace.qualification ?? "—" },
                 { label: "Guide", value: workspace.guideName ?? "—" },
+                { label: "Co-Guide", value: workspace.coGuideName ?? "—" },
+                { label: "College", value: workspace.collegeName ?? "—" },
+                { label: "State", value: workspace.state ?? "—" },
                 { label: "Status", value: workspace.status.replace("_", " "), capitalize: true },
                 { label: "Created", value: format(new Date(workspace.createdAt), "MMMM d, yyyy") },
                 { label: "Last Updated", value: format(new Date(workspace.updatedAt), "MMMM d, yyyy h:mm a") },

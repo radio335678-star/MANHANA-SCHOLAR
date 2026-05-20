@@ -1,0 +1,96 @@
+[
+  {
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "pageLimitMin": 60,
+    "pageLimitMax": 100,
+    "fontSpacingNotes": "Arial/TNR 12pt, 1.5/Double spacing, Vancouver",
+    "sectionsJson": [
+      { "title": "Title Page", "minPages": 1, "maxPages": 1 },
+      { "title": "Certificate", "minPages": 1, "maxPages": 1 },
+      { "title": "Declaration", "minPages": 1, "maxPages": 1 },
+      { "title": "Acknowledgements", "minPages": 1, "maxPages": 1 },
+      { "title": "Abstract", "minPages": 1, "maxPages": 1 },
+      { "title": "List of Abbreviations", "minPages": 1, "maxPages": 1 },
+      { "title": "Introduction", "minPages": 2, "maxPages": 4 },
+      { "title": "Aims & Objectives", "minPages": 1, "maxPages": 1 },
+      { "title": "Review of Literature", "minPages": 10, "maxPages": 20 },
+      { "title": "Materials & Methods", "minPages": 3, "maxPages": 8 },
+      { "title": "Observations & Results", "minPages": 5, "maxPages": 15 },
+      { "title": "Discussion", "minPages": 8, "maxPages": 12 },
+      { "title": "Conclusion & Summary", "minPages": 2, "maxPages": 3 },
+      { "title": "References", "minPages": 5, "maxPages": 10 },
+      { "title": "Tables", "minPages": 2, "maxPages": 5 },
+      { "title": "Annexures", "minPages": 1, "maxPages": 5 }
+    ]
+  },
+  {
+    "domain": "Ayurveda",
+    "qualificationLevel": "pg",
+    "pageLimitMin": 50,
+    "pageLimitMax": 150,
+    "fontSpacingNotes": "Arial 12pt, Double spacing, Vancouver",
+    "sectionsJson": [
+      { "title": "Title Page", "minPages": 1, "maxPages": 1 },
+      { "title": "Certificate", "minPages": 1, "maxPages": 1 },
+      { "title": "Introduction", "minPages": 2, "maxPages": 4 },
+      { "title": "Review of Literature", "minPages": 10, "maxPages": 20 },
+      { "title": "Materials & Methods", "minPages": 3, "maxPages": 8 },
+      { "title": "Results", "minPages": 5, "maxPages": 15 },
+      { "title": "Discussion", "minPages": 8, "maxPages": 12 },
+      { "title": "Conclusion", "minPages": 2, "maxPages": 3 },
+      { "title": "References", "minPages": 5, "maxPages": 10 }
+    ]
+  },
+  {
+    "domain": "Homeopathy",
+    "qualificationLevel": "pg",
+    "pageLimitMin": 50,
+    "pageLimitMax": 150,
+    "fontSpacingNotes": "Arial/TNR 12pt, Double spacing",
+    "sectionsJson": [
+      { "title": "Title Page", "minPages": 1, "maxPages": 1 },
+      { "title": "Introduction", "minPages": 2, "maxPages": 4 },
+      { "title": "Review of Literature", "minPages": 10, "maxPages": 20 },
+      { "title": "Material & Methods", "minPages": 3, "maxPages": 8 },
+      { "title": "Results", "minPages": 5, "maxPages": 15 },
+      { "title": "Discussion", "minPages": 8, "maxPages": 12 },
+      { "title": "Conclusion", "minPages": 2, "maxPages": 3 },
+      { "title": "References", "minPages": 5, "maxPages": 10 }
+    ]
+  },
+  {
+    "domain": "Siddha",
+    "qualificationLevel": "pg",
+    "pageLimitMin": 60,
+    "pageLimitMax": 100,
+    "fontSpacingNotes": "Arial 12pt, Double spacing",
+    "sectionsJson": [
+      { "title": "Title Page", "minPages": 1, "maxPages": 1 },
+      { "title": "Introduction", "minPages": 2, "maxPages": 4 },
+      { "title": "Review of Literature", "minPages": 10, "maxPages": 20 },
+      { "title": "Materials & Methods", "minPages": 3, "maxPages": 8 },
+      { "title": "Results", "minPages": 5, "maxPages": 15 },
+      { "title": "Discussion", "minPages": 8, "maxPages": 12 },
+      { "title": "Conclusion", "minPages": 2, "maxPages": 3 },
+      { "title": "References", "minPages": 5, "maxPages": 10 }
+    ]
+  },
+  {
+    "domain": "Unani",
+    "qualificationLevel": "pg",
+    "pageLimitMin": 60,
+    "pageLimitMax": 100,
+    "fontSpacingNotes": "Arial 12pt, Double spacing",
+    "sectionsJson": [
+      { "title": "Title Page", "minPages": 1, "maxPages": 1 },
+      { "title": "Introduction", "minPages": 2, "maxPages": 4 },
+      { "title": "Review of Literature", "minPages": 10, "maxPages": 20 },
+      { "title": "Materials & Methods", "minPages": 3, "maxPages": 8 },
+      { "title": "Results", "minPages": 5, "maxPages": 15 },
+      { "title": "Discussion", "minPages": 8, "maxPages": 12 },
+      { "title": "Conclusion", "minPages": 2, "maxPages": 3 },
+      { "title": "References", "minPages": 5, "maxPages": 10 }
+    ]
+  }
+]

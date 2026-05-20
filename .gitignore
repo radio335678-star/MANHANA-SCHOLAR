@@ -47,3 +47,18 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Cursor / local scratch
+.cursor/
+
+# Local docx scratch (not app assets)
+DOC-*.docx
+_docx_extract.txt
+_docx_unzip/
+_example.docx
+_example.zip

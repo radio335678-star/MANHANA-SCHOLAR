@@ -9,6 +9,11 @@ import chatRouter from "./chat";
 import vaultRouter from "./vault";
 import exportRouter from "./export";
 import adminRouter from "./admin";
+import workflowRouter from "./workflow";
+import preThesisRouter from "./preThesis";
+import preThesisChatRouter from "./preThesisChat";
+import masterChartsRouter from "./masterCharts";
+import thesisAutoCompleteRouter from "./thesisAutoComplete";
 
 const router: IRouter = Router();
 
@@ -22,5 +27,10 @@ router.use(chatRouter);
 router.use(vaultRouter);
 router.use(exportRouter);
 router.use(adminRouter);
+router.use(workflowRouter);
+router.use(preThesisRouter);
+router.use(preThesisChatRouter);
+router.use(masterChartsRouter);
+router.use(thesisAutoCompleteRouter);
 
 export default router;

@@ -3,15 +3,8 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { clerkMiddleware } from "@clerk/express";
-import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import {
-  CLERK_PROXY_PATH,
-  clerkProxyMiddleware,
-  getClerkProxyHost,
-} from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
 
@@ -35,7 +28,6 @@ app.use(
   }),
 );
 
-// Security headers (CSP disabled for dev compatibility)
 app.use(
   helmet({
     contentSecurityPolicy: false,
@@ -43,10 +35,6 @@ app.use(
   }),
 );
 
-// Clerk proxy must come before body parsing (streams raw bytes)
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-
-// General rate limit
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 200,
@@ -55,7 +43,6 @@ const generalLimiter = rateLimit({
   skip: (req) => req.path === "/api/healthz",
 });
 
-// Strict rate limit for AI endpoints
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
@@ -64,23 +51,49 @@ const aiLimiter = rateLimit({
   message: { error: "Too many AI requests. Please wait a moment." },
 });
 
+const buildLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many build requests. Please wait a moment." },
+});
+
 app.use(generalLimiter);
 app.use("/api/workspaces/:id/sections/:sid/chat/stream", aiLimiter);
 app.use("/api/workspaces/:id/sections/:sid/generate", aiLimiter);
 app.use("/api/workspaces/:id/export", aiLimiter);
+const preThesisChatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many assistant requests. Please wait a moment." },
+});
 
-app.use(cors({ credentials: true, origin: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use("/api/workspaces/:id/pre-thesis/chat/stream", preThesisChatLimiter);
+app.use("/api/workspaces/:id/pre-thesis/build", buildLimiter);
+app.use("/api/workspaces/:id/pre-thesis/revalidate", buildLimiter);
+app.use("/api/workspaces/:id/pre-thesis/synopsis", buildLimiter);
+app.use("/api/workspaces/:workspaceId/master-charts/:chartId/generate", buildLimiter);
+
+const corsOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
+  cors({
+    credentials: true,
+    origin:
+      corsOrigins && corsOrigins.length > 0
+        ? corsOrigins
+        : process.env.NODE_ENV === "production"
+          ? false
+          : true,
+  }),
 );
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 

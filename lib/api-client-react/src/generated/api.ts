@@ -30,14 +30,17 @@ import type {
   GenerateContentInput,
   GeneratedContent,
   GetDashboardActivityParams,
+  GetWorkspaceWorkflow200,
   HealthStatus,
   ListCollegesParams,
+  ListDepartmentsParams,
   ListWorkspacesParams,
   Qualification,
   Section,
   SectionInput,
   SectionReorderInput,
   SectionUpdate,
+  TransitionWorkspaceWorkflowBody,
   University,
   UserProfile,
   UserProfileInput,
@@ -1214,6 +1217,820 @@ export function useGetWorkspaceProgress<TData = Awaited<ReturnType<typeof getWor
 
 
 
+
+export const getGetWorkspaceWorkflowUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/workflow`
+}
+
+/**
+ * @summary Get workflow state and allowed transitions
+ */
+export const getWorkspaceWorkflow = async (id: number, options?: RequestInit): Promise<GetWorkspaceWorkflow200> => {
+
+  return customFetch<GetWorkspaceWorkflow200>(getGetWorkspaceWorkflowUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWorkspaceWorkflowQueryKey = (id: number,) => {
+    return [
+    `/api/workspaces/${id}/workflow`
+    ] as const;
+    }
+
+
+export const getGetWorkspaceWorkflowQueryOptions = <TData = Awaited<ReturnType<typeof getWorkspaceWorkflow>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceWorkflow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkspaceWorkflowQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkspaceWorkflow>>> = ({ signal }) => getWorkspaceWorkflow(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceWorkflow>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWorkspaceWorkflowQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkspaceWorkflow>>>
+export type GetWorkspaceWorkflowQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get workflow state and allowed transitions
+ */
+
+export function useGetWorkspaceWorkflow<TData = Awaited<ReturnType<typeof getWorkspaceWorkflow>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWorkspaceWorkflow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWorkspaceWorkflowQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getTransitionWorkspaceWorkflowUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/workflow/transition`
+}
+
+/**
+ * @summary Transition workspace workflow state
+ */
+export const transitionWorkspaceWorkflow = async (id: number,
+    transitionWorkspaceWorkflowBody: TransitionWorkspaceWorkflowBody, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getTransitionWorkspaceWorkflowUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      transitionWorkspaceWorkflowBody,)
+  }
+);}
+
+
+
+
+export const getTransitionWorkspaceWorkflowMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transitionWorkspaceWorkflow>>, TError,{id: number;data: BodyType<TransitionWorkspaceWorkflowBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof transitionWorkspaceWorkflow>>, TError,{id: number;data: BodyType<TransitionWorkspaceWorkflowBody>}, TContext> => {
+
+const mutationKey = ['transitionWorkspaceWorkflow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transitionWorkspaceWorkflow>>, {id: number;data: BodyType<TransitionWorkspaceWorkflowBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  transitionWorkspaceWorkflow(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransitionWorkspaceWorkflowMutationResult = NonNullable<Awaited<ReturnType<typeof transitionWorkspaceWorkflow>>>
+    export type TransitionWorkspaceWorkflowMutationBody = BodyType<TransitionWorkspaceWorkflowBody>
+    export type TransitionWorkspaceWorkflowMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Transition workspace workflow state
+ */
+export const useTransitionWorkspaceWorkflow = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transitionWorkspaceWorkflow>>, TError,{id: number;data: BodyType<TransitionWorkspaceWorkflowBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof transitionWorkspaceWorkflow>>,
+        TError,
+        {id: number;data: BodyType<TransitionWorkspaceWorkflowBody>},
+        TContext
+      > => {
+      return useMutation(getTransitionWorkspaceWorkflowMutationOptions(options));
+    }
+
+export const getGetPreThesisUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis`
+}
+
+/**
+ * @summary Get pre-thesis draft, checklist, conflicts
+ */
+export const getPreThesis = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getGetPreThesisUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPreThesisQueryKey = (id: number,) => {
+    return [
+    `/api/workspaces/${id}/pre-thesis`
+    ] as const;
+    }
+
+
+export const getGetPreThesisQueryOptions = <TData = Awaited<ReturnType<typeof getPreThesis>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPreThesis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPreThesisQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPreThesis>>> = ({ signal }) => getPreThesis(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPreThesis>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPreThesisQueryResult = NonNullable<Awaited<ReturnType<typeof getPreThesis>>>
+export type GetPreThesisQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get pre-thesis draft, checklist, conflicts
+ */
+
+export function useGetPreThesis<TData = Awaited<ReturnType<typeof getPreThesis>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPreThesis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPreThesisQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getPatchPreThesisUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis`
+}
+
+/**
+ * @summary Update pre-thesis checklist, notes, or draft MD
+ */
+export const patchPreThesis = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getPatchPreThesisUrl(id),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+export const getPatchPreThesisMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPreThesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchPreThesis>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['patchPreThesis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchPreThesis>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  patchPreThesis(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchPreThesisMutationResult = NonNullable<Awaited<ReturnType<typeof patchPreThesis>>>
+
+    export type PatchPreThesisMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update pre-thesis checklist, notes, or draft MD
+ */
+export const usePatchPreThesis = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPreThesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchPreThesis>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPatchPreThesisMutationOptions(options));
+    }
+
+export const getBuildPreThesisUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/build`
+}
+
+/**
+ * @summary Start 4-agent pre-thesis build job
+ */
+export const buildPreThesis = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getBuildPreThesisUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getBuildPreThesisMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof buildPreThesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof buildPreThesis>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['buildPreThesis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof buildPreThesis>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  buildPreThesis(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BuildPreThesisMutationResult = NonNullable<Awaited<ReturnType<typeof buildPreThesis>>>
+
+    export type BuildPreThesisMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Start 4-agent pre-thesis build job
+ */
+export const useBuildPreThesis = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof buildPreThesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof buildPreThesis>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getBuildPreThesisMutationOptions(options));
+    }
+
+export const getUploadPreThesisSynopsisUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/synopsis`
+}
+
+/**
+ * @summary Upload synopsis for blueprint generation
+ */
+export const uploadPreThesisSynopsis = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getUploadPreThesisSynopsisUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getUploadPreThesisSynopsisMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadPreThesisSynopsis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadPreThesisSynopsis>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['uploadPreThesisSynopsis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadPreThesisSynopsis>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  uploadPreThesisSynopsis(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadPreThesisSynopsisMutationResult = NonNullable<Awaited<ReturnType<typeof uploadPreThesisSynopsis>>>
+
+    export type UploadPreThesisSynopsisMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upload synopsis for blueprint generation
+ */
+export const useUploadPreThesisSynopsis = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadPreThesisSynopsis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadPreThesisSynopsis>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUploadPreThesisSynopsisMutationOptions(options));
+    }
+
+export const getExportPreThesisDocxUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/export.docx`
+}
+
+/**
+ * @summary Download pre-thesis as DOCX
+ */
+export const exportPreThesisDocx = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getExportPreThesisDocxUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportPreThesisDocxQueryKey = (id: number,) => {
+    return [
+    `/api/workspaces/${id}/pre-thesis/export.docx`
+    ] as const;
+    }
+
+
+export const getExportPreThesisDocxQueryOptions = <TData = Awaited<ReturnType<typeof exportPreThesisDocx>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportPreThesisDocx>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportPreThesisDocxQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportPreThesisDocx>>> = ({ signal }) => exportPreThesisDocx(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportPreThesisDocx>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportPreThesisDocxQueryResult = NonNullable<Awaited<ReturnType<typeof exportPreThesisDocx>>>
+export type ExportPreThesisDocxQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Download pre-thesis as DOCX
+ */
+
+export function useExportPreThesisDocx<TData = Awaited<ReturnType<typeof exportPreThesisDocx>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportPreThesisDocx>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportPreThesisDocxQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListDepartmentsUrl = (params?: ListDepartmentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reference/departments?${stringifiedParams}` : `/api/reference/departments`
+}
+
+/**
+ * @summary List PG departments by domain
+ */
+export const listDepartments = async (params?: ListDepartmentsParams, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getListDepartmentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDepartmentsQueryKey = (params?: ListDepartmentsParams,) => {
+    return [
+    `/api/reference/departments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListDepartmentsQueryOptions = <TData = Awaited<ReturnType<typeof listDepartments>>, TError = ErrorType<unknown>>(params?: ListDepartmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDepartments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDepartmentsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDepartments>>> = ({ signal }) => listDepartments(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDepartments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDepartmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listDepartments>>>
+export type ListDepartmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List PG departments by domain
+ */
+
+export function useListDepartments<TData = Awaited<ReturnType<typeof listDepartments>>, TError = ErrorType<unknown>>(
+ params?: ListDepartmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDepartments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDepartmentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getLockPreThesisUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/lock`
+}
+
+/**
+ * @summary Lock pre-thesis MD with SHA-256 audit
+ */
+export const lockPreThesis = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getLockPreThesisUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getLockPreThesisMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPreThesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lockPreThesis>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['lockPreThesis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lockPreThesis>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  lockPreThesis(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LockPreThesisMutationResult = NonNullable<Awaited<ReturnType<typeof lockPreThesis>>>
+
+    export type LockPreThesisMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Lock pre-thesis MD with SHA-256 audit
+ */
+export const useLockPreThesis = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lockPreThesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lockPreThesis>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getLockPreThesisMutationOptions(options));
+    }
+
+export const getListMasterChartsUrl = (workspaceId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/master-charts`
+}
+
+/**
+ * @summary List master charts for workspace
+ */
+export const listMasterCharts = async (workspaceId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getListMasterChartsUrl(workspaceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMasterChartsQueryKey = (workspaceId: number,) => {
+    return [
+    `/api/workspaces/${workspaceId}/master-charts`
+    ] as const;
+    }
+
+
+export const getListMasterChartsQueryOptions = <TData = Awaited<ReturnType<typeof listMasterCharts>>, TError = ErrorType<unknown>>(workspaceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMasterCharts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMasterChartsQueryKey(workspaceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMasterCharts>>> = ({ signal }) => listMasterCharts(workspaceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(workspaceId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMasterCharts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMasterChartsQueryResult = NonNullable<Awaited<ReturnType<typeof listMasterCharts>>>
+export type ListMasterChartsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List master charts for workspace
+ */
+
+export function useListMasterCharts<TData = Awaited<ReturnType<typeof listMasterCharts>>, TError = ErrorType<unknown>>(
+ workspaceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMasterCharts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMasterChartsQueryOptions(workspaceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateMasterChartUrl = (workspaceId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/master-charts`
+}
+
+/**
+ * @summary Create master chart
+ */
+export const createMasterChart = async (workspaceId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getCreateMasterChartUrl(workspaceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCreateMasterChartMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMasterChart>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMasterChart>>, TError,{workspaceId: number}, TContext> => {
+
+const mutationKey = ['createMasterChart'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMasterChart>>, {workspaceId: number}> = (props) => {
+          const {workspaceId} = props ?? {};
+
+          return  createMasterChart(workspaceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMasterChartMutationResult = NonNullable<Awaited<ReturnType<typeof createMasterChart>>>
+
+    export type CreateMasterChartMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create master chart
+ */
+export const useCreateMasterChart = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMasterChart>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMasterChart>>,
+        TError,
+        {workspaceId: number},
+        TContext
+      > => {
+      return useMutation(getCreateMasterChartMutationOptions(options));
+    }
 
 export const getListSectionsUrl = (workspaceId: number,) => {
 

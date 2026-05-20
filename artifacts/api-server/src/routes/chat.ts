@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import multer from "multer";
 import { db } from "@workspace/db";
 import {
   chatMessagesTable,
@@ -6,10 +7,17 @@ import {
   workspacesTable,
   usersTable,
   activityEventsTable,
+  eq,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { requireAuth, getClerkUserId, getOrCreateDbUser } from "../lib/auth";
-import { chat, generateContent } from "../lib/kimi";
+import { requireAuth, requireDbUser } from "../lib/auth";
+import { chat } from "../lib/kimi";
+import { buildThesisSectionSystemPrompt } from "../lib/thesisAgentPrompt";
+import { finalizeAiContent } from "../lib/finalizeAiContent";
+import { assertAiAllowed, getWorkspaceAiContext } from "../lib/workspaceContext";
+import { catalogToArray } from "@workspace/vault-citations";
+import { runThesisSectionAgent } from "../services/thesisSectionAgent";
+import { uploadBuffer, isStorageConfigured } from "../lib/supabaseStorage";
+import { extractDatasetContextText } from "../lib/contextExtract";
 import {
   ListChatMessagesParams,
   ListChatMessagesResponse,
@@ -23,6 +31,9 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+const chatAttachments = new Map<string, string>();
 
 function msgToResponse(m: typeof chatMessagesTable.$inferSelect) {
   return {
@@ -50,13 +61,16 @@ async function verifyAccess(workspaceId: number, sectionId: number, userId: numb
   return { ws, sec };
 }
 
+function attachmentKey(workspaceId: number, sectionId: number): string {
+  return `${workspaceId}:${sectionId}`;
+}
+
 router.get(
   "/workspaces/:workspaceId/sections/:sectionId/chat",
   requireAuth,
   async (req, res): Promise<void> => {
-    const clerkUserId = getClerkUserId(req);
-    const dbUser = await getOrCreateDbUser(clerkUserId);
-    if (!dbUser) { res.json([]); return; }
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
     const params = ListChatMessagesParams.safeParse(req.params);
     if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -75,14 +89,63 @@ router.get(
   },
 );
 
-// SSE streaming chat
+router.post(
+  "/workspaces/:workspaceId/sections/:sectionId/chat/upload",
+  requireAuth,
+  upload.single("file"),
+  async (req, res): Promise<void> => {
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
+
+    const workspaceId = parseInt(String(req.params.workspaceId), 10);
+    const sectionId = parseInt(String(req.params.sectionId), 10);
+    if (isNaN(workspaceId) || isNaN(sectionId)) {
+      res.status(400).json({ error: "Invalid params" });
+      return;
+    }
+
+    const access = await verifyAccess(workspaceId, sectionId, dbUser.id);
+    if (!access) { res.status(404).json({ error: "Not found" }); return; }
+
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: "No file uploaded" });
+      return;
+    }
+
+    let extractedText = "";
+    try {
+      extractedText = await extractDatasetContextText(file.buffer, file.mimetype, file.originalname);
+    } catch {
+      extractedText = `[File: ${file.originalname}]`;
+    }
+
+    if (isStorageConfigured()) {
+      const path = `chat-attachments/${workspaceId}/${sectionId}/${Date.now()}-${file.originalname}`;
+      await uploadBuffer(path, file.buffer, file.mimetype, "vault");
+    }
+
+    const key = attachmentKey(workspaceId, sectionId);
+    const existing = chatAttachments.get(key) ?? "";
+    chatAttachments.set(
+      key,
+      `${existing}\n\n--- ${file.originalname} ---\n${extractedText}`.trim(),
+    );
+
+    res.json({
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      extractedPreview: extractedText.slice(0, 500),
+    });
+  },
+);
+
 router.post(
   "/workspaces/:workspaceId/sections/:sectionId/chat/stream",
   requireAuth,
   async (req, res): Promise<void> => {
-    const clerkUserId = getClerkUserId(req);
-    const dbUser = await getOrCreateDbUser(clerkUserId);
-    if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
     const workspaceId = parseInt(String(req.params.workspaceId), 10);
     const sectionId = parseInt(String(req.params.sectionId), 10);
@@ -94,7 +157,15 @@ router.post(
     const access = await verifyAccess(workspaceId, sectionId, dbUser.id);
     if (!access) { res.status(404).json({ error: "Not found" }); return; }
 
-    // Save user message
+    try {
+      await assertAiAllowed(workspaceId);
+    } catch (e) {
+      res.status(403).json({ error: e instanceof Error ? e.message : "AI not allowed" });
+      return;
+    }
+
+    const aiCtx = await getWorkspaceAiContext(workspaceId);
+
     await db.insert(chatMessagesTable).values({
       sectionId,
       role: "user",
@@ -114,75 +185,70 @@ router.post(
       .where(eq(usersTable.id, dbUser.id))
       .limit(1);
 
-    const systemPrompt = `You are MANTHANA, an expert AI research assistant for Indian medical scholars.
-You are helping a ${userProfile?.qualification ?? "medical"} scholar in ${userProfile?.domain ?? "medicine"} write their thesis titled "${access.ws.title}".
-Current section: "${access.sec.title}" (${access.sec.type}).
-${body.data.includeContext !== false && access.sec.content ? `Current section content (for context):\n${access.sec.content.substring(0, 2000)}` : ""}
-Provide precise, scholarly assistance. Cite sources as [Author, Year] placeholders. Do not use emojis. Keep responses clear and academic.`;
-
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      ...historyRows.slice(0, -1).map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
-      { role: "user" as const, content: body.data.content },
-    ];
-
-    // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
-    const apiKey = process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY ?? "";
-    if (!apiKey) {
-      const msg = "AI assistant is not configured. Please set KIMI_API_KEY to enable AI features.";
-      res.write(`data: ${JSON.stringify({ type: "token", content: msg })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: "done", totalTokens: 0 })}\n\n`);
-      await db.insert(chatMessagesTable).values({ sectionId, role: "assistant", content: msg, tokensUsed: 0 });
-      res.end();
-      return;
-    }
+    const attachmentContext = chatAttachments.get(attachmentKey(workspaceId, sectionId));
+
+    let fullContent = "";
+    let totalTokens = 0;
 
     try {
-      const { OpenAI } = await import("openai");
-      const client = new OpenAI({ apiKey, baseURL: "https://api.moonshot.ai/v1" });
-
-      const stream = await client.chat.completions.create({
-        model: "moonshot-v1-8k",
-        messages,
-        stream: true,
-        max_tokens: 2048,
-        temperature: 0.7,
+      const result = await runThesisSectionAgent({
+        workspaceId,
+        sectionId,
+        userMessage: body.data.content,
+        mode: "chat",
+        aiCtx,
+        workspace: access.ws,
+        section: access.sec,
+        userProfile,
+        history: historyRows.slice(0, -1).map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+        attachmentContext,
+        onEvent: (event) => {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+          if (event.type === "token") fullContent += event.content;
+          if (event.type === "section_updated") fullContent = event.content;
+          if (event.type === "done") {
+            fullContent = event.content || fullContent;
+            totalTokens = event.totalTokens;
+          }
+        },
       });
 
-      let fullContent = "";
-      let totalTokens = 0;
+      fullContent = result.content || fullContent;
+      totalTokens = result.totalTokens;
 
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content ?? "";
-        if (delta) {
-          fullContent += delta;
-          res.write(`data: ${JSON.stringify({ type: "token", content: delta })}\n\n`);
-        }
-        if (chunk.usage) {
-          totalTokens = chunk.usage.total_tokens ?? 0;
-        }
-      }
+      const finalized = finalizeAiContent(fullContent, aiCtx.vaultCatalog, {
+        appendReferences: true,
+        expandInline: false,
+      });
 
-      res.write(`data: ${JSON.stringify({ type: "done", totalTokens })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: "done",
+          content: finalized.raw,
+          totalTokens,
+          citedKeys: finalized.citedKeys,
+          unknownKeys: finalized.unknownKeys,
+          vaultResourceCount: aiCtx.vaultResourceCount,
+          vaultCatalog: catalogToArray(aiCtx.vaultCatalog),
+        })}\n\n`,
+      );
 
-      // Save assistant message
       await db.insert(chatMessagesTable).values({
         sectionId,
         role: "assistant",
-        content: fullContent,
+        content: finalized.raw,
         tokensUsed: totalTokens,
       });
-
-    } catch (err) {
+    } catch {
       const errMsg = "AI request failed. Please try again.";
       res.write(`data: ${JSON.stringify({ type: "error", message: errMsg })}\n\n`);
       await db.insert(chatMessagesTable).values({ sectionId, role: "assistant", content: errMsg, tokensUsed: 0 });
@@ -192,14 +258,12 @@ Provide precise, scholarly assistance. Cite sources as [Author, Year] placeholde
   },
 );
 
-// SSE streaming section generation
 router.post(
   "/workspaces/:workspaceId/sections/:sectionId/generate/stream",
   requireAuth,
   async (req, res): Promise<void> => {
-    const clerkUserId = getClerkUserId(req);
-    const dbUser = await getOrCreateDbUser(clerkUserId);
-    if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
     const workspaceId = parseInt(String(req.params.workspaceId), 10);
     const sectionId = parseInt(String(req.params.sectionId), 10);
@@ -211,86 +275,87 @@ router.post(
     const access = await verifyAccess(workspaceId, sectionId, dbUser.id);
     if (!access) { res.status(404).json({ error: "Not found" }); return; }
 
+    try {
+      await assertAiAllowed(workspaceId);
+    } catch (e) {
+      res.status(403).json({ error: e instanceof Error ? e.message : "AI not allowed" });
+      return;
+    }
+
+    const aiCtx = await getWorkspaceAiContext(workspaceId);
+
     const [userProfile] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.id, dbUser.id))
       .limit(1);
 
-    const toneMap: Record<string, string> = {
-      academic: "formal academic prose suitable for a medical thesis",
-      concise: "concise and precise language",
-      detailed: "comprehensive and detailed academic prose",
-      formal: "highly formal scholarly English",
-    };
-    const toneDesc = toneMap[body.data.tone ?? "academic"] ?? toneMap.academic;
-    const wordHint = body.data.wordLimit ? ` Target approximately ${body.data.wordLimit} words.` : "";
-
-    const systemPrompt = `You are a scholarly writing assistant specializing in Indian medical research.
-You help ${userProfile?.qualification ?? "MD"} scholars in ${userProfile?.domain ?? access.ws.domain ?? "medicine"} medicine write high-quality thesis content.
-Write in ${toneDesc}.${wordHint}
-Follow standard academic thesis conventions. Cite placeholders like [Author, Year] where references would go.
-Do not use emojis. Write with precision, clarity, and authority appropriate for a medical thesis.`;
-
-    const userMsg = `I am writing the "${access.sec.title}" section (${access.sec.type}) of my thesis titled "${access.ws.title}".\n\n${body.data.prompt}`;
-
-    // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
-    const apiKey = process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY ?? "";
-    if (!apiKey) {
-      const msg = "AI not configured. Set KIMI_API_KEY to enable section generation.";
-      res.write(`data: ${JSON.stringify({ type: "token", content: msg })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: "done", totalTokens: 0 })}\n\n`);
-      res.end();
-      return;
-    }
+    let fullContent = "";
+    let totalTokens = 0;
 
     try {
-      const { OpenAI } = await import("openai");
-      const client = new OpenAI({ apiKey, baseURL: "https://api.moonshot.ai/v1" });
+      const targetPages = access.sec.targetPages;
+      const wordLimit = body.data.wordLimit ?? (targetPages ? targetPages * 250 : 1500);
 
-      const stream = await client.chat.completions.create({
-        model: "moonshot-v1-8k",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMsg },
-        ],
-        stream: true,
-        max_tokens: body.data.wordLimit ? Math.ceil(body.data.wordLimit * 1.5) : 2048,
-        temperature: 0.7,
+      const result = await runThesisSectionAgent({
+        workspaceId,
+        sectionId,
+        userMessage: body.data.prompt,
+        mode: "generate",
+        aiCtx,
+        workspace: access.ws,
+        section: { ...access.sec, targetPages: targetPages ?? Math.ceil(wordLimit / 250) },
+        userProfile,
+        onEvent: (event) => {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+          if (event.type === "token") fullContent += event.content;
+          if (event.type === "section_updated") fullContent = event.content;
+          if (event.type === "done") {
+            fullContent = event.content || fullContent;
+            totalTokens = event.totalTokens;
+          }
+        },
       });
 
-      let fullContent = "";
-      let totalTokens = 0;
+      fullContent = result.content || fullContent;
+      totalTokens = result.totalTokens;
 
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content ?? "";
-        if (delta) {
-          fullContent += delta;
-          res.write(`data: ${JSON.stringify({ type: "token", content: delta })}\n\n`);
-        }
-        if (chunk.usage) {
-          totalTokens = chunk.usage.total_tokens ?? 0;
-        }
+      const finalized = finalizeAiContent(fullContent, aiCtx.vaultCatalog, {
+        appendReferences: true,
+        expandInline: false,
+      });
+
+      if (!access.sec.content && finalized.raw) {
+        const { markdownToHtml } = await import("../lib/markdownToHtml");
+        await db
+          .update(sectionsTable)
+          .set({
+            content: markdownToHtml(finalized.raw),
+            status: "in_progress",
+            wordCount: finalized.raw.split(/\s+/).filter(Boolean).length,
+            updatedAt: new Date(),
+          })
+          .where(eq(sectionsTable.id, sectionId));
       }
 
-      res.write(`data: ${JSON.stringify({ type: "done", totalTokens, content: fullContent })}\n\n`);
-
-      // Update section with generated content
-      await db
-        .update(sectionsTable)
-        .set({
-          content: fullContent,
-          status: "in_progress",
-          wordCount: fullContent.split(/\s+/).filter(Boolean).length,
-          updatedAt: new Date(),
-        })
-        .where(eq(sectionsTable.id, sectionId));
+      res.write(
+        `data: ${JSON.stringify({
+          type: "done",
+          totalTokens,
+          content: finalized.raw,
+          expandedContent: finalized.expanded,
+          citedKeys: finalized.citedKeys,
+          unknownKeys: finalized.unknownKeys,
+          vaultResourceCount: aiCtx.vaultResourceCount,
+          vaultCatalog: catalogToArray(aiCtx.vaultCatalog),
+        })}\n\n`,
+      );
 
       await db.insert(activityEventsTable).values({
         userId: dbUser.id,
@@ -298,8 +363,7 @@ Do not use emojis. Write with precision, clarity, and authority appropriate for 
         type: "content_generated",
         description: `AI generated content for "${access.sec.title}" in "${access.ws.title}"`,
       });
-
-    } catch (err) {
+    } catch {
       res.write(`data: ${JSON.stringify({ type: "error", message: "AI generation failed. Please try again." })}\n\n`);
     }
 
@@ -311,9 +375,8 @@ router.post(
   "/workspaces/:workspaceId/sections/:sectionId/chat",
   requireAuth,
   async (req, res): Promise<void> => {
-    const clerkUserId = getClerkUserId(req);
-    const dbUser = await getOrCreateDbUser(clerkUserId);
-    if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
     const params = SendChatMessageParams.safeParse(req.params);
     if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -323,6 +386,15 @@ router.post(
 
     const access = await verifyAccess(params.data.workspaceId, params.data.sectionId, dbUser.id);
     if (!access) { res.status(404).json({ error: "Not found" }); return; }
+
+    try {
+      await assertAiAllowed(params.data.workspaceId);
+    } catch (e) {
+      res.status(403).json({ error: e instanceof Error ? e.message : "AI not allowed" });
+      return;
+    }
+
+    const aiCtx = await getWorkspaceAiContext(params.data.workspaceId);
 
     await db.insert(chatMessagesTable).values({
       sectionId: params.data.sectionId,
@@ -343,11 +415,19 @@ router.post(
       .where(eq(usersTable.id, dbUser.id))
       .limit(1);
 
-    const systemPrompt = `You are MANTHANA, an expert AI research assistant for Indian medical scholars.
-You are helping a ${userProfile?.qualification ?? "medical"} scholar in ${userProfile?.domain ?? "medicine"} write their thesis titled "${access.ws.title}".
-Current section: "${access.sec.title}" (${access.sec.type}).
-${body.data.includeContext !== false && access.sec.content ? `Current section content:\n${access.sec.content.substring(0, 2000)}` : ""}
-Provide precise, scholarly assistance. Cite sources as [Author, Year] placeholders. Do not use emojis.`;
+    const systemPrompt = buildThesisSectionSystemPrompt({
+      qualification: userProfile?.qualification,
+      domain: userProfile?.domain,
+      thesisTitle: access.ws.title,
+      sectionTitle: access.sec.title,
+      sectionType: access.sec.type,
+      sectionContent: body.data.includeContext !== false ? access.sec.content : null,
+      contextBlock: aiCtx.contextBlock || undefined,
+      vaultResourceCount: aiCtx.vaultResourceCount,
+      targetPages: access.sec.targetPages,
+      minPages: access.sec.minPages,
+      maxPages: access.sec.maxPages,
+    });
 
     const messages = [
       { role: "system" as const, content: systemPrompt },
@@ -378,9 +458,8 @@ router.delete(
   "/workspaces/:workspaceId/sections/:sectionId/chat/clear",
   requireAuth,
   async (req, res): Promise<void> => {
-    const clerkUserId = getClerkUserId(req);
-    const dbUser = await getOrCreateDbUser(clerkUserId);
-    if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
     const params = ClearChatHistoryParams.safeParse(req.params);
     if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -392,6 +471,8 @@ router.delete(
       .delete(chatMessagesTable)
       .where(eq(chatMessagesTable.sectionId, params.data.sectionId));
 
+    chatAttachments.delete(attachmentKey(params.data.workspaceId, params.data.sectionId));
+
     res.sendStatus(204);
   },
 );
@@ -400,9 +481,8 @@ router.post(
   "/workspaces/:workspaceId/sections/:sectionId/generate",
   requireAuth,
   async (req, res): Promise<void> => {
-    const clerkUserId = getClerkUserId(req);
-    const dbUser = await getOrCreateDbUser(clerkUserId);
-    if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
     const params = GenerateSectionContentParams.safeParse(req.params);
     if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -413,11 +493,23 @@ router.post(
     const access = await verifyAccess(params.data.workspaceId, params.data.sectionId, dbUser.id);
     if (!access) { res.status(404).json({ error: "Not found" }); return; }
 
+    try {
+      await assertAiAllowed(params.data.workspaceId);
+    } catch (e) {
+      res.status(403).json({ error: e instanceof Error ? e.message : "AI not allowed" });
+      return;
+    }
+
+    const aiCtx = await getWorkspaceAiContext(params.data.workspaceId);
+
     const [userProfile] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.id, dbUser.id))
       .limit(1);
+
+    const { generateContent } = await import("../lib/kimi");
+    const wordLimit = body.data.wordLimit ?? (access.sec.targetPages ? access.sec.targetPages * 250 : 1500);
 
     const result = await generateContent(body.data.prompt, {
       workspaceTitle: access.ws.title,
@@ -426,8 +518,12 @@ router.post(
       domain: userProfile?.domain ?? access.ws.domain ?? "medicine",
       qualification: userProfile?.qualification ?? access.ws.qualification ?? "MD",
       tone: body.data.tone ?? "academic",
-      wordLimit: body.data.wordLimit,
+      wordLimit,
+      contextBlock: aiCtx.contextBlock,
+      vaultResourceCount: aiCtx.vaultResourceCount,
     });
+
+    const finalized = finalizeAiContent(result.content, aiCtx.vaultCatalog);
 
     await db.insert(activityEventsTable).values({
       userId: dbUser.id,
@@ -438,7 +534,7 @@ router.post(
 
     res.json(
       GenerateSectionContentResponse.parse({
-        content: result.content,
+        content: finalized.raw,
         tokensUsed: result.tokensUsed,
       }),
     );

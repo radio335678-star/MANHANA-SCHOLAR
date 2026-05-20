@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import {
   useGetWorkspace,
   useListSections,
@@ -33,12 +33,18 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
-import TiptapEditor from "@/components/editor/TiptapEditor";
+import { ThesisPreview } from "@/components/editor/ThesisPreview";
+import { AutoCompleteDialog } from "@/components/editor/AutoCompleteDialog";
+import type { Editor } from "@tiptap/react";
+import { markdownToHtml } from "@/lib/markdownToHtml";
+import { expandVaultCitationsInText, type VaultCitationCatalog } from "@workspace/vault-citations";
+import { useVaultCitationCatalog } from "@/hooks/useVaultCitationCatalog";
+import { VaultEvidenceBar } from "@/components/editor/VaultEvidenceBar";
+import { CitedMessageContent } from "@/components/editor/CitedMessageContent";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Loader2,
   ArrowLeft,
@@ -57,6 +63,11 @@ import {
   Sparkles,
   Send,
   RefreshCw,
+  PanelLeftClose,
+  PanelLeftOpen,
+  FileDown,
+  Paperclip,
+  Brain,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -66,43 +77,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
-// Standard thesis sections
-const STANDARD_SECTIONS = [
-  "Title Page",
-  "Certificate",
-  "Declaration",
-  "Acknowledgements",
-  "Abstract",
-  "List of Abbreviations",
-  "Introduction",
-  "Aims & Objectives",
-  "Review of Literature",
-  "Materials & Methods",
-  "Observations & Results",
-  "Discussion",
-  "Conclusion & Summary",
-  "References",
-  "Tables",
-  "Annexures",
-];
+import { inferSectionType, getPageSpecForTitle } from "@/lib/standardSections";
 
 const QUICK_PROMPTS = [
-  "Expand paragraph 2 with more detail",
-  "Add recent 2024-2025 studies",
-  "Condense to approximately 500 words",
-  "Add a classical reference",
+  "Add citations from vault sources",
+  "Expand with recent 2024-2026 studies",
+  "Add statistical analysis",
+  "Generate bibliography for this section",
   "Make the language more formal",
-  "Check for logical consistency",
-  "Add statistical power analysis",
-  "Summarize key findings",
+  "Ensure coherence with adjacent sections",
 ];
 
 type StreamingState = {
@@ -110,17 +96,23 @@ type StreamingState = {
   content: string;
 };
 
+const SECTIONS_COLLAPSED_KEY = "sections-sidebar-collapsed";
+
 // Sortable Section Item
 function SortableSection({
   section,
   isActive,
   onClick,
   onDelete,
+  onUpdatePages,
+  collapsed = false,
 }: {
   section: any;
   isActive: boolean;
   onClick: () => void;
   onDelete: (id: number) => void;
+  onUpdatePages: (id: number, targetPages: number) => void;
+  collapsed?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id });
@@ -137,6 +129,23 @@ function SortableSection({
     not_started: "bg-muted-foreground/20",
     reviewed: "bg-green-500",
   };
+
+  if (collapsed) {
+    return (
+      <div ref={setNodeRef} style={style}>
+        <button
+          onClick={onClick}
+          title={section.title}
+          className={cn(
+            "w-full flex justify-center py-2 rounded-md transition-colors",
+            isActive ? "bg-primary/15 ring-1 ring-primary/30" : "hover:bg-muted/50"
+          )}
+        >
+          <div className={cn("w-2.5 h-2.5 rounded-full", statusColor[section.status] ?? "bg-muted")} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div ref={setNodeRef} style={style} className="group relative">
@@ -163,6 +172,26 @@ function SortableSection({
           <span className="text-xs text-muted-foreground/60 shrink-0">{section.wordCount}w</span>
         )}
       </button>
+      {!collapsed && (
+        <div className="px-2 pb-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <span className="shrink-0 tabular-nums">
+            {section.minPages ?? 1}–{section.maxPages ?? "?"} pg
+          </span>
+          <Input
+            type="number"
+            min={section.minPages ?? 1}
+            max={section.maxPages ?? 500}
+            value={section.targetPages ?? ""}
+            placeholder="target"
+            className="h-6 text-[10px] px-1.5 w-14"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v)) onUpdatePages(section.id, v);
+            }}
+          />
+        </div>
+      )}
       <button
         className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10 hover:text-destructive"
         onClick={(e) => { e.stopPropagation(); onDelete(section.id); }}
@@ -180,6 +209,33 @@ export default function WorkspaceEditor({ id }: { id: string }) {
   const { toast } = useToast();
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [manualEdit, setManualEdit] = useState(false);
+  const [autoCompleteOpen, setAutoCompleteOpen] = useState(false);
+  const [thinkingContent, setThinkingContent] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string }>>([]);
+  const [coherenceScore, setCoherenceScore] = useState<number | null>(null);
+  const [previewStreamContent, setPreviewStreamContent] = useState("");
+
+  const [sectionsCollapsed, setSectionsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SECTIONS_COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSectionsCollapsed = () => {
+    setSectionsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SECTIONS_COLLAPSED_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const searchParams = new URLSearchParams(window.location.search);
   const [activeSectionId, setActiveSectionId] = useState<number | null>(
@@ -190,6 +246,12 @@ export default function WorkspaceEditor({ id }: { id: string }) {
     query: { enabled: !!workspaceId, queryKey: getGetWorkspaceQueryKey(workspaceId) },
   });
 
+  const workflowState =
+    (workspace as { workflowState?: string } | undefined)?.workflowState ?? "init";
+  const aiWritingAllowed =
+    ["locked_in", "section_build", "review", "complete"].includes(workflowState) &&
+    Boolean((workspace as { preThesisMdHash?: string | null })?.preThesisMdHash);
+
   const { data: sections, isLoading: isSectionsLoading } = useListSections(workspaceId, {
     query: { enabled: !!workspaceId, queryKey: getListSectionsQueryKey(workspaceId) },
   });
@@ -199,6 +261,32 @@ export default function WorkspaceEditor({ id }: { id: string }) {
       setActiveSectionId(sections[0].id);
     }
   }, [sections, activeSectionId]);
+
+  useEffect(() => {
+    if (!workspaceId || !aiWritingAllowed || isSectionsLoading) return;
+    if (sections && sections.length > 0) return;
+
+    getToken().then(async (token) => {
+      await fetch(`/api/workspaces/${workspaceId}/sections/scaffold`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      queryClient.invalidateQueries({ queryKey: getListSectionsQueryKey(workspaceId) });
+    });
+  }, [workspaceId, aiWritingAllowed, isSectionsLoading, sections, getToken, queryClient]);
+
+  useEffect(() => {
+    if (!workspaceId || !aiWritingAllowed) return;
+    getToken().then(async (token) => {
+      const res = await fetch(`/api/workspaces/${workspaceId}/sections/coherence`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCoherenceScore(data.score ?? null);
+      }
+    });
+  }, [workspaceId, aiWritingAllowed, sections, getToken]);
 
   const activeSection = sections?.find((s) => s.id === activeSectionId);
 
@@ -270,8 +358,19 @@ export default function WorkspaceEditor({ id }: { id: string }) {
   const handleCreateSection = (title?: string) => {
     const t = title ?? newSectionTitle;
     if (!t.trim()) return;
+    const pages = getPageSpecForTitle(t);
     createSection.mutate(
-      { workspaceId, data: { title: t, type: "custom", status: "not_started" } },
+      {
+        workspaceId,
+        data: {
+          title: t,
+          type: inferSectionType(t),
+          status: "not_started",
+          targetPages: pages.targetPages,
+          minPages: pages.minPages,
+          maxPages: pages.maxPages,
+        },
+      },
       {
         onSuccess: (newSec) => {
           queryClient.invalidateQueries({ queryKey: getListSectionsQueryKey(workspaceId) });
@@ -294,6 +393,29 @@ export default function WorkspaceEditor({ id }: { id: string }) {
         },
       }
     );
+  };
+
+  const handleUpdatePages = (sectionId: number, targetPages: number) => {
+    updateSection.mutate(
+      { workspaceId, sectionId, data: { targetPages } },
+      { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListSectionsQueryKey(workspaceId) }) },
+    );
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!activeSectionId) return;
+    const token = await getToken();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(
+      `/api/workspaces/${workspaceId}/sections/${activeSectionId}/chat/upload`,
+      { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      setUploadedFiles((prev) => [...prev, { name: data.fileName ?? file.name }]);
+      toast({ title: "File attached", description: file.name });
+    }
   };
 
   // DnD reordering
@@ -323,6 +445,13 @@ export default function WorkspaceEditor({ id }: { id: string }) {
   const [chatOpen, setChatOpen] = useState(true);
   const [localMessages, setLocalMessages] = useState<Array<{ role: string; content: string; id: string }>>([]);
   const [chatStreaming, setChatStreaming] = useState<StreamingState>({ isStreaming: false, content: "" });
+  const [lastUnknownKeys, setLastUnknownKeys] = useState<string[]>([]);
+  const [sseCatalog, setSseCatalog] = useState<VaultCitationCatalog>({});
+
+  const { catalog: vaultCatalog, entries: vaultEntries, resourceCount: vaultResourceCount } =
+    useVaultCitationCatalog(workspaceId);
+
+  const mergedCatalog: VaultCitationCatalog = { ...vaultCatalog, ...sseCatalog };
 
   const { data: serverMessages } = useListChatMessages(workspaceId, activeSectionId ?? 0, {
     query: {
@@ -346,7 +475,17 @@ export default function WorkspaceEditor({ id }: { id: string }) {
   const handleChatSubmit = async (message?: string) => {
     const text = message ?? chatInput;
     if (!text.trim() || !activeSectionId || chatStreaming.isStreaming) return;
+    if (!aiWritingAllowed) {
+      toast({
+        title: "Pre-thesis lock-in required",
+        description: "Complete Pre-Thesis Setup and lock-in before using AI chat.",
+        variant: "destructive",
+      });
+      return;
+    }
     setChatInput("");
+    setThinkingContent("");
+    setPreviewStreamContent("");
 
     const userMsg = { role: "user", content: text, id: `user-${Date.now()}` };
     setLocalMessages((prev) => [...prev, userMsg]);
@@ -385,11 +524,38 @@ export default function WorkspaceEditor({ id }: { id: string }) {
             if (data.type === "token") {
               fullContent += data.content;
               setChatStreaming({ isStreaming: true, content: fullContent });
+              setPreviewStreamContent(fullContent);
+            } else if (data.type === "thinking") {
+              setThinkingContent((prev) => (prev + data.content).slice(-2000));
+            } else if (data.type === "section_updated") {
+              const html = markdownToHtml(data.content);
+              setEditorHtml(html);
+              setPreviewStreamContent(data.content);
+              editorRef.current?.commands.setContent(html);
             } else if (data.type === "done") {
-              const assistantMsg = { role: "assistant", content: fullContent, id: `ai-${Date.now()}` };
+              const content = data.content ?? fullContent;
+              if (content && !manualEdit) {
+                applyContentToEditor(content, "replace", true);
+              }
+              setPreviewStreamContent("");
+              if (data.unknownKeys?.length) setLastUnknownKeys(data.unknownKeys);
+              else setLastUnknownKeys([]);
+              if (data.vaultCatalog?.length) {
+                const next: VaultCitationCatalog = {};
+                for (const e of data.vaultCatalog) next[e.key] = e;
+                setSseCatalog(next);
+              }
+              const assistantMsg = { role: "assistant", content, id: `ai-${Date.now()}` };
               setLocalMessages((prev) => [...prev, assistantMsg]);
               setChatStreaming({ isStreaming: false, content: "" });
               queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey(workspaceId, activeSectionId) });
+              if (data.unknownKeys?.length) {
+                toast({
+                  title: "Unverified citations detected",
+                  description: `Keys not in vault: ${data.unknownKeys.join(", ")}`,
+                  variant: "destructive",
+                });
+              }
             } else if (data.type === "error") {
               setChatStreaming({ isStreaming: false, content: "" });
               toast({ title: data.message, variant: "destructive" });
@@ -410,12 +576,49 @@ export default function WorkspaceEditor({ id }: { id: string }) {
     setChatStreaming({ isStreaming: false, content: "" });
   };
 
+  const applyContentToEditor = useCallback(
+    (text: string, mode: "replace" | "append" = "replace", expandCitations = true) => {
+      const prose = expandCitations ? expandVaultCitationsInText(text, mergedCatalog) : text;
+      const html = markdownToHtml(prose);
+      const editor = editorRef.current;
+
+      if (editor) {
+        if (mode === "replace") {
+          editor.commands.setContent(html);
+        } else {
+          editor.commands.insertContentAt(editor.state.doc.content.size, html);
+        }
+        setEditorHtml(editor.getHTML());
+        setEditorText(editor.getText());
+      } else {
+        setEditorHtml(html);
+        setEditorText(prose.replace(/<[^>]+>/g, " "));
+      }
+
+      toast({
+        title: "Applied to document",
+        description: expandCitations
+          ? "Vault citations expanded to author–year in the thesis."
+          : "Content inserted with [Vn] citation keys.",
+      });
+    },
+    [toast, mergedCatalog]
+  );
+
   // Section generation SSE
   const [generating, setGenerating] = useState(false);
   const [generatingContent, setGeneratingContent] = useState("");
 
   const handleGenerate = async () => {
     if (!activeSection || generating) return;
+    if (!aiWritingAllowed) {
+      toast({
+        title: "Pre-thesis lock-in required",
+        description: "Complete Pre-Thesis Setup and lock-in before using AI generation.",
+        variant: "destructive",
+      });
+      return;
+    }
     setGenerating(true);
     setGeneratingContent("");
     let accumulated = "";
@@ -431,7 +634,10 @@ export default function WorkspaceEditor({ id }: { id: string }) {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            prompt: `Generate a comprehensive and scholarly ${activeSection.title} section for this thesis. Follow standard academic conventions and include appropriate citations as [Author, Year] placeholders.`,
+            prompt:
+              vaultResourceCount > 0
+                ? `Write a comprehensive, scholarly ${activeSection.title} section for this thesis. Support claims only with Research Vault sources using inline keys [V1], [V2], etc. End with a "References (Research Vault)" block listing every cited key.`
+                : `Write a comprehensive ${activeSection.title} section. The Research Vault is empty — do not invent citations; note where literature from the vault is needed.`,
             tone: "academic",
             wordLimit: 1500,
           }),
@@ -454,9 +660,36 @@ export default function WorkspaceEditor({ id }: { id: string }) {
               accumulated += data.content;
               setGeneratingContent(accumulated);
             } else if (data.type === "done") {
-              setEditorHtml(`<p>${accumulated.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`);
+              const raw = data.content ?? accumulated;
+              if (data.unknownKeys?.length) {
+                setLastUnknownKeys(data.unknownKeys);
+                toast({
+                  title: "Unverified citations in draft",
+                  description: `Keys not in vault: ${data.unknownKeys.join(", ")}`,
+                  variant: "destructive",
+                });
+              } else {
+                setLastUnknownKeys([]);
+              }
+              if (data.vaultCatalog?.length) {
+                const next: VaultCitationCatalog = {};
+                for (const e of data.vaultCatalog) next[e.key] = e;
+                setSseCatalog(next);
+              }
+              const html = markdownToHtml(raw);
+              setEditorHtml(html);
+              editorRef.current?.commands.setContent(html);
+              if (editorRef.current) {
+                setEditorText(editorRef.current.getText());
+              }
               queryClient.invalidateQueries({ queryKey: getListSectionsQueryKey(workspaceId) });
-              toast({ title: "Section generated", description: `${activeSection.title} content generated successfully.` });
+              toast({
+                title: "Section generated",
+                description:
+                  vaultResourceCount > 0
+                    ? `${activeSection.title} drafted with vault citation keys [Vn].`
+                    : `${activeSection.title} drafted — add vault sources for citations.`,
+              });
             } else if (data.type === "error") {
               toast({ title: "Generation failed", variant: "destructive" });
             }
@@ -502,10 +735,11 @@ export default function WorkspaceEditor({ id }: { id: string }) {
   const estPages = Math.ceil(wordCount / 250);
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col -mx-6 lg:-mx-10 -my-6 lg:-my-10 bg-background overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col bg-background overflow-hidden">
       {/* Top Bar */}
       <div className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0 bg-card">
         <div className="flex items-center gap-3">
+          <SidebarTrigger className="-ml-1 h-8 w-8 shrink-0 md:hidden" />
           <Link href={`/workspaces/${workspaceId}`}>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
               <ArrowLeft className="w-4 h-4" />
@@ -557,44 +791,80 @@ export default function WorkspaceEditor({ id }: { id: string }) {
             {exporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
             Export DOCX
           </Button>
+          {aiWritingAllowed && (
+            <Button
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setAutoCompleteOpen(true)}
+            >
+              <Sparkles className="w-3 h-3" />
+              Auto Complete Thesis
+            </Button>
+          )}
         </div>
       </div>
 
+      {!aiWritingAllowed && (
+        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2 shrink-0">
+          <span>AI writing is locked until you complete Pre-Thesis Setup and lock-in.</span>
+          <Link href={`/workspaces/${workspaceId}`}>
+            <Button variant="outline" size="sm" className="h-7 text-xs shrink-0">
+              Go to Pre-Thesis
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {aiWritingAllowed && (
+        <VaultEvidenceBar
+          workspaceId={workspaceId}
+          resourceCount={vaultResourceCount}
+          catalog={vaultEntries}
+          unknownKeys={lastUnknownKeys}
+        />
+      )}
+
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Sections */}
-        <div className="w-56 border-r border-border bg-muted/10 flex flex-col shrink-0">
-          <div className="p-3 border-b border-border flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sections</span>
-            <div className="flex items-center gap-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 max-h-72 overflow-y-auto">
-                  {STANDARD_SECTIONS.map((s) => (
-                    <DropdownMenuItem
-                      key={s}
-                      onClick={() => handleCreateSection(s)}
-                      className="text-xs"
-                    >
-                      {s}
-                    </DropdownMenuItem>
-                  ))}
-                  <Separator className="my-1" />
-                  <DropdownMenuItem
-                    onClick={() => setIsDialogOpen(true)}
-                    className="text-xs font-medium"
-                  >
-                    <Plus className="w-3 h-3 mr-1.5" /> Custom Section
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+        <div
+          className={cn(
+            "border-r border-border bg-card/50 flex flex-col shrink-0 transition-all duration-200",
+            sectionsCollapsed ? "w-10" : "w-56"
+          )}
+        >
+          <div className={cn("border-b border-border flex items-center", sectionsCollapsed ? "p-2 justify-center" : "p-3 justify-between")}>
+            {!sectionsCollapsed && (
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sections</span>
+            )}
+            <div className={cn("flex items-center gap-1", sectionsCollapsed && "flex-col")}>
+              {!sectionsCollapsed && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setIsDialogOpen(true)}
+                title="Add custom section"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={toggleSectionsCollapsed}
+                title={sectionsCollapsed ? "Expand sections" : "Collapse sections"}
+              >
+                {sectionsCollapsed ? (
+                  <PanelLeftOpen className="w-3.5 h-3.5" />
+                ) : (
+                  <PanelLeftClose className="w-3.5 h-3.5" />
+                )}
+              </Button>
             </div>
           </div>
 
-          <ScrollArea className="flex-1 px-2 py-2">
+          <ScrollArea className={cn("flex-1 py-2", sectionsCollapsed ? "px-1" : "px-2")}>
             {isSectionsLoading ? (
               <div className="flex justify-center py-4">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -615,6 +885,8 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                         isActive={activeSectionId === section.id}
                         onClick={() => setActiveSectionId(section.id)}
                         onDelete={handleDeleteSection}
+                        onUpdatePages={handleUpdatePages}
+                        collapsed={sectionsCollapsed}
                       />
                     ))}
                   </div>
@@ -630,7 +902,7 @@ export default function WorkspaceEditor({ id }: { id: string }) {
           </ScrollArea>
 
           {/* Progress Footer */}
-          {sections && sections.length > 0 && (
+          {sections && sections.length > 0 && !sectionsCollapsed && (
             <div className="p-3 border-t border-border text-xs text-muted-foreground space-y-1">
               <div className="flex justify-between">
                 <span>
@@ -654,33 +926,16 @@ export default function WorkspaceEditor({ id }: { id: string }) {
           )}
         </div>
 
-        {/* Center - Editor */}
-        <div className="flex-1 flex flex-col bg-card min-w-0">
+        {/* Center - Word Preview / Manual Edit */}
+        <div className="flex-1 flex flex-col min-w-0 bg-background">
           {activeSection ? (
             <>
-              {/* Section Header */}
-              <div className="px-6 py-3 border-b border-border shrink-0 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-serif font-bold text-foreground">{activeSection.title}</h2>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                    <span className="uppercase tracking-wider">{activeSection.type}</span>
-                    <span>·</span>
-                    <span
-                      className={cn(
-                        "capitalize font-medium",
-                        activeSection.status === "completed" ? "text-primary" :
-                        activeSection.status === "in_progress" ? "text-amber-500" : "text-muted-foreground"
-                      )}
-                    >
-                      {activeSection.status.replace("_", " ")}
-                    </span>
-                  </div>
-                </div>
+              <div className="px-6 py-2 border-b border-border shrink-0 flex items-center justify-end gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={handleGenerate}
-                  disabled={generating}
+                  disabled={generating || !aiWritingAllowed}
                   className="gap-1.5 text-xs h-8 border-primary/20 text-primary hover:bg-primary/5"
                 >
                   {generating ? (
@@ -690,8 +945,6 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                   )}
                 </Button>
               </div>
-
-              {/* Tiptap Editor */}
               <div className="flex-1 overflow-hidden relative">
                 {generating ? (
                   <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-4">
@@ -704,11 +957,19 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                     )}
                   </div>
                 ) : null}
-                <TiptapEditor
-                  key={activeSectionId}
-                  content={editorHtml}
+                <ThesisPreview
+                  sectionTitle={activeSection.title}
+                  sectionType={activeSection.type}
+                  htmlContent={editorHtml}
+                  workspaceTitle={workspace?.title}
+                  qualification={workspace?.qualification ?? undefined}
+                  catalog={mergedCatalog}
+                  manualEdit={manualEdit}
+                  onToggleManualEdit={() => setManualEdit((m) => !m)}
                   onChange={handleEditorChange}
-                  placeholder={`Start writing ${activeSection.title}… or click "Generate with AI"`}
+                  onEditorReady={(ed) => { editorRef.current = ed; }}
+                  streamingContent={previewStreamContent || generatingContent}
+                  isStreaming={chatStreaming.isStreaming || generating}
                   className="h-full"
                 />
               </div>
@@ -728,7 +989,7 @@ export default function WorkspaceEditor({ id }: { id: string }) {
         <div
           className={cn(
             "border-l border-border bg-muted/10 flex flex-col shrink-0 transition-all",
-            chatOpen ? "w-80" : "w-10"
+            chatOpen ? (sectionsCollapsed ? "w-96" : "w-80") : "w-10"
           )}
         >
           <div
@@ -740,6 +1001,11 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">AI Assistant</span>
+                  {coherenceScore != null && (
+                    <Badge variant="outline" className="text-[10px] h-5">
+                      Coherence {coherenceScore}%
+                    </Badge>
+                  )}
                 </div>
                 <X className="w-3.5 h-3.5 text-muted-foreground" />
               </>
@@ -766,6 +1032,27 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                 </div>
               )}
 
+              {thinkingContent && (
+                <details className="mx-3 mt-2 rounded border border-border bg-muted/30 p-2 text-[10px]">
+                  <summary className="cursor-pointer flex items-center gap-1 font-medium text-muted-foreground">
+                    <Brain className="w-3 h-3" /> AI Thinking
+                  </summary>
+                  <p className="mt-1 whitespace-pre-wrap text-muted-foreground max-h-24 overflow-y-auto">
+                    {thinkingContent}
+                  </p>
+                </details>
+              )}
+
+              {uploadedFiles.length > 0 && (
+                <div className="px-3 pt-2 flex flex-wrap gap-1">
+                  {uploadedFiles.map((f) => (
+                    <Badge key={f.name} variant="secondary" className="text-[10px]">
+                      {f.name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
               {/* Messages */}
               <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
                 {!activeSectionId ? (
@@ -781,7 +1068,7 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                   localMessages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={cn("flex flex-col", msg.role === "user" ? "items-end" : "items-start")}
+                      className={cn("flex flex-col gap-1", msg.role === "user" ? "items-end" : "items-start")}
                     >
                       <div
                         className={cn(
@@ -791,18 +1078,60 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                             : "bg-card border border-border text-foreground rounded-tl-none"
                         )}
                       >
-                        {msg.content}
+                        {msg.role === "assistant" ? (
+                          <CitedMessageContent content={msg.content} catalog={mergedCatalog} />
+                        ) : (
+                          msg.content
+                        )}
                       </div>
+                      {msg.role === "assistant" && (
+                        <div className="flex flex-wrap gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-[10px] gap-1 px-2 border-primary/20 text-primary hover:bg-primary/5"
+                            onClick={() => applyContentToEditor(msg.content, "replace", true)}
+                          >
+                            <FileDown className="w-3 h-3" />
+                            Apply (author–year)
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => applyContentToEditor(msg.content, "append", true)}
+                          >
+                            Append
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => applyContentToEditor(msg.content, "replace", false)}
+                          >
+                            Keep [Vn] keys
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
 
                 {chatStreaming.isStreaming && chatStreaming.content && (
-                  <div className="flex flex-col items-start">
+                  <div className="flex flex-col items-start gap-1">
                     <div className="max-w-[95%] px-3 py-2 rounded-lg text-xs leading-relaxed bg-card border border-border text-foreground rounded-tl-none whitespace-pre-wrap">
-                      {chatStreaming.content}
+                      <CitedMessageContent content={chatStreaming.content} catalog={mergedCatalog} />
                       <span className="inline-block w-1 h-3 bg-primary animate-pulse ml-0.5 align-middle" />
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] gap-1 px-2 border-primary/20 text-primary hover:bg-primary/5"
+                      onClick={() => applyContentToEditor(chatStreaming.content, "replace", true)}
+                    >
+                      <FileDown className="w-3 h-3" />
+                      Apply (author–year)
+                    </Button>
                   </div>
                 )}
 
@@ -817,7 +1146,27 @@ export default function WorkspaceEditor({ id }: { id: string }) {
 
               {/* Chat Input */}
               <div className="p-3 border-t border-border bg-card">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFileUpload(f);
+                    e.target.value = "";
+                  }}
+                />
                 <div className="flex gap-2">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-9 w-9 shrink-0 self-end"
+                    disabled={!activeSectionId}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                  </Button>
                   <textarea
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
@@ -828,7 +1177,7 @@ export default function WorkspaceEditor({ id }: { id: string }) {
                       }
                     }}
                     placeholder={activeSectionId ? "Ask for help… (Enter to send)" : "Select a section first"}
-                    disabled={!activeSectionId || chatStreaming.isStreaming}
+                    disabled={!activeSectionId || chatStreaming.isStreaming || !aiWritingAllowed}
                     rows={2}
                     className="flex-1 resize-none text-xs bg-background border border-border rounded-md p-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
                   />
@@ -882,6 +1231,17 @@ export default function WorkspaceEditor({ id }: { id: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AutoCompleteDialog
+        open={autoCompleteOpen}
+        onOpenChange={setAutoCompleteOpen}
+        workspaceId={workspaceId}
+        workspaceTitle={workspace?.title ?? "Thesis"}
+        catalog={mergedCatalog}
+        onComplete={() => {
+          queryClient.invalidateQueries({ queryKey: getListSectionsQueryKey(workspaceId) });
+        }}
+      />
     </div>
   );
 }

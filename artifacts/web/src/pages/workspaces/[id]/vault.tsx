@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { 
   useGetWorkspace,
   useListVaultResources,
@@ -18,7 +18,9 @@ import * as z from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Loader2, ArrowLeft, Database, Plus, FileText, Link as LinkIcon, Image as ImageIcon, Trash2, ExternalLink } from "lucide-react";
+import { Loader2, ArrowLeft, Database, Plus, FileText, Link as LinkIcon, Image as ImageIcon, Trash2, ExternalLink, BookMarked } from "lucide-react";
+import { buildCitationCatalog, type VaultCitationEntry } from "@workspace/vault-citations";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -33,6 +35,7 @@ const resourceSchema = z.object({
   authors: z.string().optional(),
   year: z.coerce.number().optional(),
   journal: z.string().optional(),
+  doi: z.string().optional(),
 });
 
 type ResourceValues = z.infer<typeof resourceSchema>;
@@ -70,6 +73,7 @@ export default function WorkspaceVault({ id }: { id: string }) {
       authors: "",
       year: new Date().getFullYear(),
       journal: "",
+      doi: "",
     }
   });
 
@@ -81,6 +85,7 @@ export default function WorkspaceVault({ id }: { id: string }) {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListVaultResourcesQueryKey(workspaceId) });
         queryClient.invalidateQueries({ queryKey: getGetVaultSummaryQueryKey(workspaceId) });
+        queryClient.invalidateQueries({ queryKey: ["vault-citation-catalog", workspaceId] });
         setIsDialogOpen(false);
         form.reset();
       }
@@ -93,9 +98,30 @@ export default function WorkspaceVault({ id }: { id: string }) {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListVaultResourcesQueryKey(workspaceId) });
         queryClient.invalidateQueries({ queryKey: getGetVaultSummaryQueryKey(workspaceId) });
+        queryClient.invalidateQueries({ queryKey: ["vault-citation-catalog", workspaceId] });
       }
     });
   };
+
+  const citationCatalog = resources
+    ? buildCitationCatalog(
+        resources.map((r) => ({
+          id: r.id,
+          type: r.type,
+          title: r.title,
+          content: r.content,
+          authors: r.authors,
+          year: r.year,
+          journal: r.journal,
+          doi: r.doi,
+          url: r.url,
+        }))
+      )
+    : {};
+
+  const keyByResourceId = Object.fromEntries(
+    Object.values(citationCatalog).map((e) => [e.resourceId, e.key])
+  );
 
   if (isWsLoading || isResLoading) {
     return (
@@ -129,6 +155,9 @@ export default function WorkspaceVault({ id }: { id: string }) {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Research Vault</span>
             </div>
             <h1 className="text-3xl font-serif font-bold text-foreground">{workspace?.title}</h1>
+            <p className="text-sm text-muted-foreground mt-2 max-w-xl">
+              Sources saved here become <strong>[V1], [V2]</strong> keys in AI writing. Add authors, year, and notes for accurate citations.
+            </p>
           </div>
         </div>
 
@@ -198,33 +227,59 @@ export default function WorkspaceVault({ id }: { id: string }) {
                   )}
                 />
 
-                {form.watch("type") === "paper" && (
-                  <div className="grid grid-cols-2 gap-4">
+                {(form.watch("type") === "paper" || form.watch("type") === "reference") && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="authors"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Authors</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Sharma, R. et al." {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="year"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Year</FormLabel>
+                            <FormControl>
+                              <Input type="number" {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                     <FormField
                       control={form.control}
-                      name="authors"
+                      name="journal"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Authors</FormLabel>
+                          <FormLabel>Journal / Source</FormLabel>
                           <FormControl>
-                            <Input placeholder="Doe, J. et al." {...field} />
+                            <Input placeholder="Journal of Ayurveda…" {...field} />
                           </FormControl>
                         </FormItem>
                       )}
                     />
                     <FormField
                       control={form.control}
-                      name="year"
+                      name="doi"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Year</FormLabel>
+                          <FormLabel>DOI (optional)</FormLabel>
                           <FormControl>
-                            <Input type="number" {...field} />
+                            <Input placeholder="10.1234/example" {...field} />
                           </FormControl>
                         </FormItem>
                       )}
                     />
-                  </div>
+                  </>
                 )}
 
                 <FormField
@@ -234,7 +289,7 @@ export default function WorkspaceVault({ id }: { id: string }) {
                     <FormItem>
                       <FormLabel>Notes / Content</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Add your notes here..." className="resize-none h-24" {...field} />
+                        <Textarea placeholder="Key findings, quotes, or summary for AI to cite…" className="resize-none h-24" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -264,6 +319,11 @@ export default function WorkspaceVault({ id }: { id: string }) {
                       {getTypeIcon(resource.type)}
                     </div>
                     <CardTitle className="font-serif text-lg leading-tight line-clamp-2">{resource.title}</CardTitle>
+                    {keyByResourceId[resource.id] && (
+                      <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
+                        [{keyByResourceId[resource.id]}]
+                      </Badge>
+                    )}
                   </div>
                   <Button 
                     variant="ghost" 
@@ -275,9 +335,11 @@ export default function WorkspaceVault({ id }: { id: string }) {
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
-                {resource.type === 'paper' && (resource.authors || resource.year) && (
-                  <CardDescription className="text-xs mt-2">
-                    {resource.authors} {resource.year && `(${resource.year})`}
+                {(resource.authors || resource.year || resource.journal) && (
+                  <CardDescription className="text-xs mt-2 space-y-0.5">
+                    {resource.authors && <span>{resource.authors}</span>}
+                    {resource.year && <span> ({resource.year})</span>}
+                    {resource.journal && <span className="block italic">{resource.journal}</span>}
                   </CardDescription>
                 )}
               </CardHeader>

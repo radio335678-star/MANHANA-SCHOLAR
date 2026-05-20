@@ -77,7 +77,8 @@ export const ListUniversitiesResponse = zod.array(ListUniversitiesResponseItem)
  */
 export const GetProfileResponse = zod.object({
   "id": zod.number(),
-  "clerkUserId": zod.string(),
+  "supabaseUserId": zod.string().uuid().nullish(),
+  "role": zod.enum(['scholar', 'admin']).optional(),
   "fullName": zod.string(),
   "email": zod.string(),
   "domain": zod.string(),
@@ -110,7 +111,8 @@ export const UpsertProfileBody = zod.object({
 
 export const UpsertProfileResponse = zod.object({
   "id": zod.number(),
-  "clerkUserId": zod.string(),
+  "supabaseUserId": zod.string().uuid().nullish(),
+  "role": zod.enum(['scholar', 'admin']).optional(),
   "fullName": zod.string(),
   "email": zod.string(),
   "domain": zod.string(),
@@ -144,9 +146,19 @@ export const GetDashboardSummaryResponse = zod.object({
   "domain": zod.string(),
   "qualification": zod.string().nullish(),
   "guideName": zod.string().nullish(),
+  "coGuideName": zod.string().nullish(),
   "collegeName": zod.string().nullish(),
+  "state": zod.string().nullish().describe('Indian state or union territory of the institution'),
   "universityName": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'archived']),
+  "workflowState": zod.enum(['init', 'pre_setup', 'locked_in', 'section_build', 'review', 'complete', 'archived']),
+  "preThesisDraftMd": zod.string().nullish(),
+  "preThesisLockedMd": zod.string().nullish(),
+  "preThesisMdHash": zod.string().nullish(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "researchNotes": zod.string().nullish(),
+  "lastLiveVerifiedAt": zod.string().nullish(),
+  "lockedAt": zod.string().nullish(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -190,9 +202,19 @@ export const ListWorkspacesResponseItem = zod.object({
   "domain": zod.string(),
   "qualification": zod.string().nullish(),
   "guideName": zod.string().nullish(),
+  "coGuideName": zod.string().nullish(),
   "collegeName": zod.string().nullish(),
+  "state": zod.string().nullish().describe('Indian state or union territory of the institution'),
   "universityName": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'archived']),
+  "workflowState": zod.enum(['init', 'pre_setup', 'locked_in', 'section_build', 'review', 'complete', 'archived']),
+  "preThesisDraftMd": zod.string().nullish(),
+  "preThesisLockedMd": zod.string().nullish(),
+  "preThesisMdHash": zod.string().nullish(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "researchNotes": zod.string().nullish(),
+  "lastLiveVerifiedAt": zod.string().nullish(),
+  "lockedAt": zod.string().nullish(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -214,7 +236,9 @@ export const CreateWorkspaceBody = zod.object({
   "domain": zod.string(),
   "qualification": zod.string().optional(),
   "guideName": zod.string().optional(),
+  "coGuideName": zod.string().optional().describe('Co-guide or co-supervisor name (optional)'),
   "collegeName": zod.string().optional(),
+  "state": zod.enum(['Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal']).optional().describe('Indian state or union territory of the institution'),
   "universityName": zod.string().optional()
 })
 
@@ -234,9 +258,19 @@ export const GetWorkspaceResponse = zod.object({
   "domain": zod.string(),
   "qualification": zod.string().nullish(),
   "guideName": zod.string().nullish(),
+  "coGuideName": zod.string().nullish(),
   "collegeName": zod.string().nullish(),
+  "state": zod.string().nullish().describe('Indian state or union territory of the institution'),
   "universityName": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'archived']),
+  "workflowState": zod.enum(['init', 'pre_setup', 'locked_in', 'section_build', 'review', 'complete', 'archived']),
+  "preThesisDraftMd": zod.string().nullish(),
+  "preThesisLockedMd": zod.string().nullish(),
+  "preThesisMdHash": zod.string().nullish(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "researchNotes": zod.string().nullish(),
+  "lastLiveVerifiedAt": zod.string().nullish(),
+  "lockedAt": zod.string().nullish(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -261,7 +295,9 @@ export const UpdateWorkspaceBody = zod.object({
   "domain": zod.string().optional(),
   "qualification": zod.string().optional(),
   "guideName": zod.string().optional(),
+  "coGuideName": zod.string().optional(),
   "collegeName": zod.string().optional(),
+  "state": zod.enum(['Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal']).optional(),
   "universityName": zod.string().optional(),
   "status": zod.enum(['active', 'completed', 'archived']).optional()
 })
@@ -274,9 +310,19 @@ export const UpdateWorkspaceResponse = zod.object({
   "domain": zod.string(),
   "qualification": zod.string().nullish(),
   "guideName": zod.string().nullish(),
+  "coGuideName": zod.string().nullish(),
   "collegeName": zod.string().nullish(),
+  "state": zod.string().nullish().describe('Indian state or union territory of the institution'),
   "universityName": zod.string().nullish(),
   "status": zod.enum(['active', 'completed', 'archived']),
+  "workflowState": zod.enum(['init', 'pre_setup', 'locked_in', 'section_build', 'review', 'complete', 'archived']),
+  "preThesisDraftMd": zod.string().nullish(),
+  "preThesisLockedMd": zod.string().nullish(),
+  "preThesisMdHash": zod.string().nullish(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "researchNotes": zod.string().nullish(),
+  "lastLiveVerifiedAt": zod.string().nullish(),
+  "lockedAt": zod.string().nullish(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -317,6 +363,104 @@ export const GetWorkspaceProgressResponse = zod.object({
 
 
 /**
+ * @summary Get workflow state and allowed transitions
+ */
+export const GetWorkspaceWorkflowParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetWorkspaceWorkflowResponse = zod.object({
+  "workflowState": zod.string(),
+  "allowedTransitions": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Transition workspace workflow state
+ */
+export const TransitionWorkspaceWorkflowParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const TransitionWorkspaceWorkflowBody = zod.object({
+  "targetState": zod.string(),
+  "reason": zod.string().optional()
+})
+
+
+/**
+ * @summary Get pre-thesis draft, checklist, conflicts
+ */
+export const GetPreThesisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Update pre-thesis checklist, notes, or draft MD
+ */
+export const PatchPreThesisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Start 4-agent pre-thesis build job
+ */
+export const BuildPreThesisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Upload synopsis for blueprint generation
+ */
+export const UploadPreThesisSynopsisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Download pre-thesis as DOCX
+ */
+export const ExportPreThesisDocxParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List PG departments by domain
+ */
+export const ListDepartmentsQueryParams = zod.object({
+  "domain": zod.coerce.string().optional()
+})
+
+
+/**
+ * @summary Lock pre-thesis MD with SHA-256 audit
+ */
+export const LockPreThesisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List master charts for workspace
+ */
+export const ListMasterChartsParams = zod.object({
+  "workspaceId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Create master chart
+ */
+export const CreateMasterChartParams = zod.object({
+  "workspaceId": zod.coerce.number()
+})
+
+
+/**
  * @summary List sections in a workspace
  */
 export const ListSectionsParams = zod.object({
@@ -332,6 +476,9 @@ export const ListSectionsResponseItem = zod.object({
   "status": zod.enum(['not_started', 'in_progress', 'completed', 'reviewed']),
   "order": zod.number(),
   "wordCount": zod.number().nullish(),
+  "targetPages": zod.number().nullish(),
+  "minPages": zod.number().nullish(),
+  "maxPages": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -355,6 +502,9 @@ export const CreateSectionBody = zod.object({
   "content": zod.string().optional(),
   "status": zod.enum(['not_started', 'in_progress', 'completed', 'reviewed']).optional(),
   "order": zod.number().optional(),
+  "targetPages": zod.number().optional(),
+  "minPages": zod.number().optional(),
+  "maxPages": zod.number().optional(),
   "notes": zod.string().optional()
 })
 
@@ -376,6 +526,9 @@ export const GetSectionResponse = zod.object({
   "status": zod.enum(['not_started', 'in_progress', 'completed', 'reviewed']),
   "order": zod.number(),
   "wordCount": zod.number().nullish(),
+  "targetPages": zod.number().nullish(),
+  "minPages": zod.number().nullish(),
+  "maxPages": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -399,6 +552,9 @@ export const UpdateSectionBody = zod.object({
   "content": zod.string().optional(),
   "status": zod.enum(['not_started', 'in_progress', 'completed', 'reviewed']).optional(),
   "order": zod.number().optional(),
+  "targetPages": zod.number().optional(),
+  "minPages": zod.number().optional(),
+  "maxPages": zod.number().optional(),
   "notes": zod.string().optional()
 })
 
@@ -411,6 +567,9 @@ export const UpdateSectionResponse = zod.object({
   "status": zod.enum(['not_started', 'in_progress', 'completed', 'reviewed']),
   "order": zod.number(),
   "wordCount": zod.number().nullish(),
+  "targetPages": zod.number().nullish(),
+  "minPages": zod.number().nullish(),
+  "maxPages": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -446,6 +605,9 @@ export const ReorderSectionsResponseItem = zod.object({
   "status": zod.enum(['not_started', 'in_progress', 'completed', 'reviewed']),
   "order": zod.number(),
   "wordCount": zod.number().nullish(),
+  "targetPages": zod.number().nullish(),
+  "minPages": zod.number().nullish(),
+  "maxPages": zod.number().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()

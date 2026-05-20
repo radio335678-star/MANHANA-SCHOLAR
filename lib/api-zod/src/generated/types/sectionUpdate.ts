@@ -15,5 +15,8 @@ export interface SectionUpdate {
   content?: string;
   status?: SectionUpdateStatus;
   order?: number;
+  targetPages?: number;
+  minPages?: number;
+  maxPages?: number;
   notes?: string;
 }

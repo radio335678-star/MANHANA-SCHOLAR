@@ -2,7 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClerkProvider } from "@clerk/react";
+import { AuthProvider } from "@/lib/auth";
 
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
@@ -28,12 +28,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
-if (!PUBLISHABLE_KEY) {
-  console.warn("Missing VITE_CLERK_PUBLISHABLE_KEY in environment variables");
-}
 
 function Router() {
   return (
@@ -76,7 +70,7 @@ function Router() {
 
 function App() {
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -85,7 +79,7 @@ function App() {
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }
 

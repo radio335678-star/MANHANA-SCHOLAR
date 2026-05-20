@@ -1,0 +1,55 @@
+# MANTHANA-SCHOLER Supabase — linked remote project
+# Link: supabase link --project-ref lziejvvfmreprdnuifwx
+
+project_id = "lziejvvfmreprdnuifwx"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:22333"
+additional_redirect_urls = [
+  "http://localhost:22333/**",
+  "http://127.0.0.1:22333/**",
+]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+# Set false locally for faster iteration; keep true in production Dashboard
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+
+[analytics]
+enabled = false

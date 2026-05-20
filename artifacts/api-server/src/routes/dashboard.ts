@@ -7,9 +7,12 @@ import {
   chatMessagesTable,
   vaultResourcesTable,
   activityEventsTable,
+  eq,
+  count,
+  and,
+  sql,
 } from "@workspace/db";
-import { eq, count, and, sql } from "drizzle-orm";
-import { requireAuth, getClerkUserId, getOrCreateDbUser } from "../lib/auth";
+import { requireAuth, requireDbUser } from "../lib/auth";
 import {
   GetDashboardSummaryResponse,
   GetDashboardActivityResponse,
@@ -19,25 +22,10 @@ import {
 const router: IRouter = Router();
 
 router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.json(
-      GetDashboardSummaryResponse.parse({
-        totalWorkspaces: 0,
-        activeWorkspaces: 0,
-        completedWorkspaces: 0,
-        totalSections: 0,
-        completedSections: 0,
-        totalVaultResources: 0,
-        totalChatMessages: 0,
-        recentWorkspaces: [],
-      }),
-    );
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const [wsStats] = await db
+      const [wsStats] = await db
     .select({
       total: count(),
       active: sql<number>`count(*) filter (where ${workspacesTable.status} = 'active')`,
@@ -133,14 +121,10 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.get("/dashboard/activity", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.json([]);
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const parsed = GetDashboardActivityQueryParams.safeParse(req.query);
+      const parsed = GetDashboardActivityQueryParams.safeParse(req.query);
   const limit = parsed.success ? (parsed.data.limit ?? 20) : 20;
 
   const events = await db

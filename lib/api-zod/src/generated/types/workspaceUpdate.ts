@@ -5,6 +5,7 @@
  * MANTHANA-SCHOLER — AI-powered thesis and research writing platform for Indian medical scholars
  * OpenAPI spec version: 1.0.0
  */
+import type { WorkspaceUpdateState } from './workspaceUpdateState';
 import type { WorkspaceUpdateStatus } from './workspaceUpdateStatus';
 
 export interface WorkspaceUpdate {
@@ -14,7 +15,9 @@ export interface WorkspaceUpdate {
   domain?: string;
   qualification?: string;
   guideName?: string;
+  coGuideName?: string;
   collegeName?: string;
+  state?: WorkspaceUpdateState;
   universityName?: string;
   status?: WorkspaceUpdateStatus;
 }

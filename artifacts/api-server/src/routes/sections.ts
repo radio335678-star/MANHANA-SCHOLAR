@@ -4,9 +4,17 @@ import {
   sectionsTable,
   workspacesTable,
   activityEventsTable,
+  eq,
+  sql,
 } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
-import { requireAuth, getClerkUserId, getOrCreateDbUser } from "../lib/auth";
+import { requireAuth, requireDbUser } from "../lib/auth";
+import {
+  autoAdvanceOnFirstSection,
+  autoAdvanceOnAllSectionsComplete,
+} from "../services/workflowState";
+import { scaffoldStandardSections } from "../services/sectionScaffold";
+import { runCoherenceCheck } from "../services/sectionCoherence";
+import { loadVaultAiContext } from "../lib/loadVaultForAi";
 import {
   ListSectionsParams,
   ListSectionsResponse,
@@ -33,6 +41,9 @@ function sectionToResponse(s: typeof sectionsTable.$inferSelect) {
     content: s.content ?? null,
     notes: s.notes ?? null,
     wordCount: s.wordCount ?? null,
+    targetPages: s.targetPages ?? null,
+    minPages: s.minPages ?? null,
+    maxPages: s.maxPages ?? null,
   };
 }
 
@@ -46,11 +57,10 @@ async function verifyWorkspaceOwnership(workspaceId: number, userId: number) {
 }
 
 router.get("/workspaces/:workspaceId/sections", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) { res.json([]); return; }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = ListSectionsParams.safeParse(req.params);
+      const params = ListSectionsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const ws = await verifyWorkspaceOwnership(params.data.workspaceId, dbUser.id);
@@ -66,11 +76,10 @@ router.get("/workspaces/:workspaceId/sections", requireAuth, async (req, res): P
 });
 
 router.post("/workspaces/:workspaceId/sections", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = CreateSectionParams.safeParse(req.params);
+      const params = CreateSectionParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const body = CreateSectionBody.safeParse(req.body);
@@ -102,15 +111,16 @@ router.post("/workspaces/:workspaceId/sections", requireAuth, async (req, res): 
     description: `Added section "${section!.title}" to "${ws.title}"`,
   });
 
+  await autoAdvanceOnFirstSection(params.data.workspaceId, dbUser.id);
+
   res.status(201).json(sectionToResponse(section!));
 });
 
 router.get("/workspaces/:workspaceId/sections/:sectionId", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = GetSectionParams.safeParse(req.params);
+      const params = GetSectionParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const ws = await verifyWorkspaceOwnership(params.data.workspaceId, dbUser.id);
@@ -130,11 +140,10 @@ router.get("/workspaces/:workspaceId/sections/:sectionId", requireAuth, async (r
 });
 
 router.patch("/workspaces/:workspaceId/sections/:sectionId", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = UpdateSectionParams.safeParse(req.params);
+      const params = UpdateSectionParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const body = UpdateSectionBody.safeParse(req.body);
@@ -169,17 +178,17 @@ router.patch("/workspaces/:workspaceId/sections/:sectionId", requireAuth, async 
       type: "section_completed",
       description: `Completed section "${updated.title}" in "${ws.title}"`,
     });
+    await autoAdvanceOnAllSectionsComplete(params.data.workspaceId, dbUser.id);
   }
 
   res.json(UpdateSectionResponse.parse(sectionToResponse(updated)));
 });
 
 router.delete("/workspaces/:workspaceId/sections/:sectionId", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = DeleteSectionParams.safeParse(req.params);
+      const params = DeleteSectionParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const ws = await verifyWorkspaceOwnership(params.data.workspaceId, dbUser.id);
@@ -198,11 +207,10 @@ router.delete("/workspaces/:workspaceId/sections/:sectionId", requireAuth, async
 });
 
 router.post("/workspaces/:workspaceId/sections/reorder", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) { res.status(404).json({ error: "User not found" }); return; }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = ReorderSectionsParams.safeParse(req.params);
+      const params = ReorderSectionsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const body = ReorderSectionsBody.safeParse(req.body);
@@ -224,6 +232,35 @@ router.post("/workspaces/:workspaceId/sections/reorder", requireAuth, async (req
     .orderBy(sectionsTable.order);
 
   res.json(ReorderSectionsResponse.parse(sections.map(sectionToResponse)));
+});
+
+router.post("/workspaces/:workspaceId/sections/scaffold", requireAuth, async (req, res): Promise<void> => {
+  const dbUser = await requireDbUser(req, res);
+  if (!dbUser) return;
+
+  const workspaceId = parseInt(String(req.params.workspaceId), 10);
+  if (isNaN(workspaceId)) { res.status(400).json({ error: "Invalid workspace ID" }); return; }
+
+  const ws = await verifyWorkspaceOwnership(workspaceId, dbUser.id);
+  if (!ws) { res.status(404).json({ error: "Workspace not found" }); return; }
+
+  const sections = await scaffoldStandardSections(workspaceId);
+  res.status(201).json(ListSectionsResponse.parse(sections.map(sectionToResponse)));
+});
+
+router.get("/workspaces/:workspaceId/sections/coherence", requireAuth, async (req, res): Promise<void> => {
+  const dbUser = await requireDbUser(req, res);
+  if (!dbUser) return;
+
+  const workspaceId = parseInt(String(req.params.workspaceId), 10);
+  if (isNaN(workspaceId)) { res.status(400).json({ error: "Invalid workspace ID" }); return; }
+
+  const ws = await verifyWorkspaceOwnership(workspaceId, dbUser.id);
+  if (!ws) { res.status(404).json({ error: "Workspace not found" }); return; }
+
+  const vaultCtx = await loadVaultAiContext(workspaceId);
+  const report = await runCoherenceCheck(workspaceId, vaultCtx.catalog);
+  res.json(report);
 });
 
 export default router;

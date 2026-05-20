@@ -5,10 +5,12 @@
  * MANTHANA-SCHOLER — AI-powered thesis and research writing platform for Indian medical scholars
  * OpenAPI spec version: 1.0.0
  */
+import type { UserProfileRole } from './userProfileRole';
 
 export interface UserProfile {
   id: number;
-  clerkUserId: string;
+  supabaseUserId?: string | null;
+  role?: UserProfileRole;
   fullName: string;
   email: string;
   domain: string;

@@ -1,5 +1,5 @@
 import { useGetDashboardSummary, useGetDashboardActivity, getGetDashboardSummaryQueryKey, getGetDashboardActivityQueryKey } from "@workspace/api-client-react";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";

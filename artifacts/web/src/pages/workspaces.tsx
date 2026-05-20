@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth";
 import { useListWorkspaces, getListWorkspacesQueryKey } from "@workspace/api-client-react";
 import { format } from "date-fns";
 
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Plus, BookOpen, Clock, Activity } from "lucide-react";
+import { WorkspaceCardMenu } from "@/components/workspace/WorkspaceCardMenu";
 
 export default function WorkspacesList() {
   const { userId } = useAuth();
@@ -56,9 +57,19 @@ export default function WorkspacesList() {
       ) : workspaces && workspaces.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {workspaces.map((workspace) => (
-            <Link key={workspace.id} href={`/workspaces/${workspace.id}`}>
-              <Card className="h-full flex flex-col hover-elevate cursor-pointer border-border shadow-sm transition-all group">
-                <CardHeader>
+            <Card
+              key={workspace.id}
+              className="h-full flex flex-col hover-elevate border-border shadow-sm transition-all group relative"
+            >
+              <div className="absolute top-3 right-3 z-10">
+                <WorkspaceCardMenu
+                  workspaceId={workspace.id}
+                  workspaceTitle={workspace.title}
+                  status={workspace.status}
+                />
+              </div>
+              <Link href={`/workspaces/${workspace.id}`} className="flex flex-col flex-1 min-h-0">
+                <CardHeader className="pr-12">
                   <div className="flex justify-between items-start gap-4">
                     <div className="space-y-1">
                       <CardTitle className="font-serif text-lg leading-tight group-hover:text-primary transition-colors">
@@ -95,8 +106,8 @@ export default function WorkspacesList() {
                     <span>{format(new Date(workspace.updatedAt), "MMM d, yyyy")}</span>
                   </div>
                 </CardFooter>
-              </Card>
-            </Link>
+              </Link>
+            </Card>
           ))}
         </div>
       ) : (

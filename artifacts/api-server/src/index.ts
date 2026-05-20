@@ -1,7 +1,12 @@
-import app from "./app";
-import { logger } from "./lib/logger";
+import { loadWorkspaceEnv } from "./loadEnv";
 
-const rawPort = process.env["PORT"];
+// Load root `.env` before any module that reads process.env at import time (e.g. @workspace/db).
+loadWorkspaceEnv();
+
+const { default: app } = await import("./app");
+const { logger } = await import("./lib/logger");
+
+const rawPort = process.env["API_PORT"] ?? process.env["PORT"];
 
 if (!rawPort) {
   throw new Error(
@@ -22,4 +27,10 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  void import("./services/postLockVault").then(({ processPendingPostLockJobs }) => {
+    setInterval(() => {
+      void processPendingPostLockJobs(5).catch(() => undefined);
+    }, 60_000);
+  });
 });

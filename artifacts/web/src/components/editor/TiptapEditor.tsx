@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -35,6 +35,7 @@ interface TiptapEditorProps {
   placeholder?: string;
   editable?: boolean;
   className?: string;
+  onEditorReady?: (editor: Editor) => void;
 }
 
 export default function TiptapEditor({
@@ -43,6 +44,7 @@ export default function TiptapEditor({
   placeholder = "Start writing…",
   editable = true,
   className,
+  onEditorReady,
 }: TiptapEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -59,22 +61,27 @@ export default function TiptapEditor({
     ],
     content: content || "",
     editable,
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML(), editor.getText());
+    onUpdate: ({ editor: ed }) => {
+      onChange(ed.getHTML(), ed.getText());
     },
     editorProps: {
       attributes: {
-        class:
-          "prose prose-slate max-w-none focus:outline-none min-h-full p-8 text-base leading-relaxed font-sans text-foreground",
+        class: "thesis-prose focus:outline-none min-h-full",
+        "data-placeholder": placeholder,
       },
     },
   });
 
-  // Sync external content changes
+  useEffect(() => {
+    if (editor && onEditorReady) {
+      onEditorReady(editor);
+    }
+  }, [editor, onEditorReady]);
+
   useEffect(() => {
     if (!editor) return;
     if (editor.getHTML() !== content && !editor.isFocused) {
-      editor.commands.setContent(content || "", { emitUpdate: false } as any);
+      editor.commands.setContent(content || "", { emitUpdate: false });
     }
   }, [content, editor]);
 
@@ -122,7 +129,7 @@ export default function TiptapEditor({
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {editable && (
-        <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border bg-muted/30 flex-wrap shrink-0">
+        <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border bg-card/80 backdrop-blur-sm flex-wrap shrink-0 z-10">
           <ToolbarButton
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
@@ -264,8 +271,10 @@ export default function TiptapEditor({
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
-        <EditorContent editor={editor} className="h-full" />
+      <div className="flex-1 overflow-hidden document-canvas">
+        <div className="word-page">
+          <EditorContent editor={editor} />
+        </div>
       </div>
     </div>
   );

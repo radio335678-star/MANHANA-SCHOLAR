@@ -59,45 +59,48 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 0 0% 100%;
-  --foreground: 211 64% 11%;
-  
-  --border: 214 32% 91%;
-  
-  --card: 0 0% 100%;
-  --card-foreground: 211 64% 11%;
-  --card-border: 214 32% 91%;
+  --background: 40 20% 97%;
+  --foreground: 224 56% 12%;
 
-  --sidebar: 211 64% 11%;
+  --border: 40 12% 88%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 224 56% 12%;
+  --card-border: 40 12% 88%;
+
+  --sidebar: 224 56% 18%;
   --sidebar-foreground: 0 0% 100%;
-  --sidebar-border: 211 64% 15%;
-  --sidebar-primary: 45 89% 57%;
-  --sidebar-primary-foreground: 211 64% 11%;
-  --sidebar-accent: 211 64% 18%;
+  --sidebar-border: 224 50% 22%;
+  --sidebar-primary: 38 72% 56%;
+  --sidebar-primary-foreground: 224 56% 12%;
+  --sidebar-accent: 224 50% 24%;
   --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 45 89% 57%;
+  --sidebar-ring: 38 72% 56%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 211 64% 11%;
-  --popover-border: 214 32% 91%;
+  --popover-foreground: 224 56% 12%;
+  --popover-border: 40 12% 88%;
 
-  --primary: 211 64% 11%;
+  --primary: 224 56% 18%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 214 32% 96%;
-  --secondary-foreground: 211 64% 11%;
+  --secondary: 40 15% 94%;
+  --secondary-foreground: 224 56% 12%;
 
-  --muted: 214 32% 96%;
-  --muted-foreground: 215 16% 47%;
+  --muted: 40 12% 93%;
+  --muted-foreground: 224 20% 42%;
 
-  --accent: 45 89% 57%;
-  --accent-foreground: 211 64% 11%;
+  --accent: 38 72% 56%;
+  --accent-foreground: 224 56% 12%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 214 32% 91%;
-  --ring: 211 64% 11%;
+  --input: 40 12% 88%;
+  --ring: 224 56% 18%;
+
+  --document-parchment: #f5f0e8;
+  --document-page-shadow: 0 4px 40px rgba(26, 46, 90, 0.12);
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: 'Playfair Display', serif;
@@ -172,4 +175,99 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif;
   }
+}
+
+/* MS Word-like document canvas */
+.document-canvas {
+  background: var(--document-parchment);
+  min-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.word-page {
+  background: #ffffff;
+  width: 100%;
+  max-width: 794px;
+  min-height: 1123px;
+  padding: 96px 80px;
+  box-shadow: var(--document-page-shadow);
+  border: 1px solid hsl(40 12% 88%);
+}
+
+/* Thesis typography inside the editor */
+.word-page .ProseMirror,
+.word-page .thesis-prose {
+  font-family: "Times New Roman", Georgia, "Cambria", serif;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #1a1a1a;
+  outline: none;
+  min-height: 600px;
+}
+
+.word-page .ProseMirror p,
+.word-page .thesis-prose p {
+  text-align: justify;
+  margin-bottom: 1em;
+  text-indent: 2em;
+}
+
+.word-page .ProseMirror p:first-child,
+.word-page .thesis-prose p:first-child {
+  text-indent: 0;
+}
+
+.word-page .ProseMirror h1,
+.word-page .thesis-prose h1 {
+  font-size: 18.67px;
+  font-weight: 700;
+  text-align: center;
+  text-indent: 0;
+  margin: 1.5em 0 0.75em;
+  line-height: 1.4;
+}
+
+.word-page .ProseMirror h2,
+.word-page .thesis-prose h2 {
+  font-size: 16px;
+  font-weight: 700;
+  text-indent: 0;
+  margin: 1.25em 0 0.5em;
+  line-height: 1.4;
+}
+
+.word-page .ProseMirror h3,
+.word-page .thesis-prose h3 {
+  font-size: 16px;
+  font-weight: 600;
+  font-style: italic;
+  text-indent: 0;
+  margin: 1em 0 0.5em;
+}
+
+.word-page .ProseMirror ul,
+.word-page .ProseMirror ol,
+.word-page .thesis-prose ul,
+.word-page .thesis-prose ol {
+  text-indent: 0;
+  padding-left: 2em;
+  margin-bottom: 1em;
+}
+
+.word-page .ProseMirror li p,
+.word-page .thesis-prose li p {
+  text-indent: 0;
+  margin-bottom: 0.25em;
+}
+
+.word-page .ProseMirror p.is-editor-empty:first-child::before {
+  color: #9ca3af;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  font-style: italic;
 }

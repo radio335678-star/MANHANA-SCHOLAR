@@ -1,19 +1,29 @@
 import { useEffect } from "react";
-import { useAuth } from "@clerk/react";
-import { useLocation, Link } from "wouter";
+import { useAuth } from "@/lib/auth";
+import { useLocation } from "wouter";
 import { useGetProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
-import { Loader2, BookOpen, LayoutDashboard, FileText, UserCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getInitialSidebarOpen } from "@/lib/sidebar-prefs";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/layout/AppSidebar";
+import { AppHeader } from "@/components/layout/AppHeader";
+import { SidebarRouteSync } from "@/components/layout/SidebarRouteSync";
 
 export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { isLoaded, userId } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   const { data: profile, isLoading: isProfileLoading, isError: isProfileError } = useGetProfile({
     query: {
       enabled: !!userId,
       queryKey: getGetProfileQueryKey(),
-      retry: false
-    }
+      retry: false,
+    },
   });
 
   useEffect(() => {
@@ -32,43 +42,35 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
 
   if (!isLoaded || !userId || isProfileLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
+  const isFullBleed = location.includes("/editor");
+
   return (
-    <div className="flex min-h-screen w-full bg-background text-foreground font-sans">
-      <aside className="w-64 border-r border-border bg-card hidden md:flex flex-col">
-        <div className="p-6 border-b border-border flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          <span className="font-serif font-bold text-lg tracking-tight">MANTHANA</span>
-        </div>
-        <nav className="flex-1 p-4 space-y-1">
-          <Link href="/dashboard" className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-card-foreground hover:bg-secondary transition-colors">
-            <LayoutDashboard className="w-4 h-4" />
-            Dashboard
-          </Link>
-          <Link href="/workspaces" className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-card-foreground hover:bg-secondary transition-colors">
-            <FileText className="w-4 h-4" />
-            Workspaces
-          </Link>
-        </nav>
-        <div className="p-4 border-t border-border">
-          <Link href="/profile" className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <UserCircle className="w-4 h-4" />
-            Profile Settings
-          </Link>
-        </div>
-      </aside>
-      <main className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 p-6 lg:p-10 overflow-y-auto">
+    <SidebarProvider defaultOpen={getInitialSidebarOpen()}>
+      <SidebarRouteSync />
+      <AppSidebar />
+      <SidebarInset className="flex min-h-svh flex-col">
+        {!isFullBleed && <AppHeader />}
+        <div
+          className={cn(
+            "flex flex-1 flex-col min-h-0",
+            isFullBleed ? "overflow-hidden" : "overflow-y-auto p-4 md:p-6 lg:p-8"
+          )}
+        >
           {children}
         </div>
-      </main>
-    </div>
+        {/* Floating trigger on editor — header is hidden there for max space */}
+        {isFullBleed && (
+          <div className="pointer-events-none fixed left-3 top-3 z-30 hidden md:block">
+            <SidebarTrigger className="pointer-events-auto h-9 w-9 border border-border bg-card/95 shadow-sm backdrop-blur" />
+          </div>
+        )}
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

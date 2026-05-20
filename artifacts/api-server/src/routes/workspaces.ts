@@ -4,9 +4,19 @@ import {
   workspacesTable,
   sectionsTable,
   activityEventsTable,
+  eq,
+  count,
+  sql,
+  and,
 } from "@workspace/db";
-import { eq, count, sql } from "drizzle-orm";
-import { requireAuth, getClerkUserId, getOrCreateDbUser } from "../lib/auth";
+import { requireAuth, requireDbUser } from "../lib/auth";
+import { mapWorkspaceRow, mapWorkspaceListRow } from "../lib/workspaceMapper";
+import {
+  FREE_TIER_ACTIVE_WORKSPACE_LIMIT,
+  workspaceLimitError,
+} from "../lib/workspaceLimits";
+import { deleteWorkspaceStorage } from "../lib/supabaseStorage";
+import { logger } from "../lib/logger";
 import {
   ListWorkspacesQueryParams,
   ListWorkspacesResponse,
@@ -39,24 +49,18 @@ async function getWorkspaceWithCounts(workspaceId: number) {
     .from(sectionsTable)
     .where(eq(sectionsTable.workspaceId, workspaceId));
 
-  return {
+  return mapWorkspaceRow({
     ...ws,
-    createdAt: ws.createdAt.toISOString(),
-    updatedAt: ws.updatedAt.toISOString(),
     totalSections: Number(total),
     completedSections: Number(completed),
-  };
+  });
 }
 
 router.get("/workspaces", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.json([]);
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const parsed = ListWorkspacesQueryParams.safeParse(req.query);
+      const parsed = ListWorkspacesQueryParams.safeParse(req.query);
   const status = parsed.success ? parsed.data.status : undefined;
 
   const query = db
@@ -80,13 +84,11 @@ router.get("/workspaces", requireAuth, async (req, res): Promise<void> => {
         })
         .from(sectionsTable)
         .where(eq(sectionsTable.workspaceId, ws.id));
-      return {
+      return mapWorkspaceListRow({
         ...ws,
-        createdAt: ws.createdAt.toISOString(),
-        updatedAt: ws.updatedAt.toISOString(),
         totalSections: Number(total),
         completedSections: Number(completed),
-      };
+      });
     }),
   );
 
@@ -94,22 +96,50 @@ router.get("/workspaces", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/workspaces", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.status(404).json({ error: "User profile not found. Please complete onboarding first." });
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const parsed = CreateWorkspaceBody.safeParse(req.body);
+      const parsed = CreateWorkspaceBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
+  const [{ activeCount }] = await db
+    .select({ activeCount: count() })
+    .from(workspacesTable)
+    .where(
+      and(
+        eq(workspacesTable.userId, dbUser.id),
+        eq(workspacesTable.status, "active"),
+      ),
+    );
+
+  if (Number(activeCount) >= FREE_TIER_ACTIVE_WORKSPACE_LIMIT) {
+    res.status(403).json(workspaceLimitError(FREE_TIER_ACTIVE_WORKSPACE_LIMIT));
+    return;
+  }
+
+  const extra = req.body as Record<string, unknown>;
   const [ws] = await db
     .insert(workspacesTable)
-    .values({ ...parsed.data, userId: dbUser.id })
+    .values({
+      ...parsed.data,
+      userId: dbUser.id,
+      ownerUuid: req.auth?.supabaseUserId ?? dbUser.supabaseUserId ?? null,
+      ...(typeof extra.departmentId === "number" ? { departmentId: extra.departmentId } : {}),
+      ...(typeof extra.candidateName === "string" ? { candidateName: extra.candidateName } : {}),
+      ...(typeof extra.hodName === "string" ? { hodName: extra.hodName } : {}),
+      ...(typeof extra.studyType === "string" ? { studyType: extra.studyType } : {}),
+      ...(extra.preThesisChecklist &&
+      typeof extra.preThesisChecklist === "object" &&
+      !Array.isArray(extra.preThesisChecklist)
+        ? { preThesisChecklist: extra.preThesisChecklist as Record<string, boolean> }
+        : {}),
+      ...(typeof extra.researchNotes === "string" && extra.researchNotes.trim()
+        ? { researchNotes: extra.researchNotes.trim() }
+        : {}),
+    })
     .returning();
 
   await db.insert(activityEventsTable).values({
@@ -124,14 +154,10 @@ router.post("/workspaces", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/workspaces/:id", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = GetWorkspaceParams.safeParse(req.params);
+      const params = GetWorkspaceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
@@ -147,14 +173,10 @@ router.get("/workspaces/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/workspaces/:id", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = UpdateWorkspaceParams.safeParse(req.params);
+      const params = UpdateWorkspaceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
@@ -187,14 +209,10 @@ router.patch("/workspaces/:id", requireAuth, async (req, res): Promise<void> => 
 });
 
 router.delete("/workspaces/:id", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = DeleteWorkspaceParams.safeParse(req.params);
+      const params = DeleteWorkspaceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
@@ -211,19 +229,21 @@ router.delete("/workspaces/:id", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
+  try {
+    await deleteWorkspaceStorage(params.data.id);
+  } catch (err) {
+    logger.warn({ err, workspaceId: params.data.id }, "Workspace storage cleanup failed; continuing delete");
+  }
+
   await db.delete(workspacesTable).where(eq(workspacesTable.id, params.data.id));
   res.sendStatus(204);
 });
 
 router.get("/workspaces/:id/progress", requireAuth, async (req, res): Promise<void> => {
-  const clerkUserId = getClerkUserId(req);
-  const dbUser = await getOrCreateDbUser(clerkUserId);
-  if (!dbUser) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
+  const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
 
-  const params = GetWorkspaceProgressParams.safeParse(req.params);
+      const params = GetWorkspaceProgressParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;

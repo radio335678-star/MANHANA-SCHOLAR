@@ -1,0 +1,555 @@
+[
+  {
+    "universityName": "Maharashtra University of Health Sciences",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 12pt body, 14pt bold headings",
+      "spacing": "Double line spacing",
+      "margins": "1 inch all sides",
+      "pageLimitMin": 60,
+      "pageLimitMax": 100,
+      "binding": "Hard binding only",
+      "referencing": "Vancouver",
+      "language": "British English"
+    }
+  },
+  {
+    "universityName": "Rajiv Gandhi University of Health Sciences",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4",
+      "font": "Times New Roman 12pt",
+      "spacing": "1.5 line spacing",
+      "margins": "1 inch",
+      "pageLimitMin": 60,
+      "pageLimitMax": 80,
+      "referencing": "Vancouver"
+    }
+  },
+  {
+    "universityName": "Dr. YSR University of Health Sciences",
+    "domain": "Ayurveda",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4",
+      "font": "Arial 12pt",
+      "spacing": "Double",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "referencing": "Vancouver"
+    }
+  },
+  {
+    "universityName": "Dr. NTR University of Health Sciences",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Kaloji Narayana Rao University of Health Sciences",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "King George's Medical University",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Banaras Hindu University",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "All India Institute of Medical Sciences Delhi",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Jawaharlal Institute of Postgraduate Medical Education and Research",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Post Graduate Institute of Medical Education and Research",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Sri Ramachandra Institute of Higher Education and Research",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Tamil Nadu Dr. M.G.R. Medical University",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "The Tamil Nadu Dr. MGR Medical University",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "West Bengal University of Health Sciences",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Uttar Pradesh University of Medical Sciences",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Kerala University of Health Sciences",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Gujarat University",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Savitribai Phule Pune University",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Mumbai University",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "JSS Academy of Higher Education and Research",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Kasturba Medical College Manipal",
+    "domain": "Allopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Rajiv Gandhi University of Health Sciences",
+    "domain": "Ayurveda",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Maharashtra University of Health Sciences",
+    "domain": "Ayurveda",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Rajiv Gandhi University of Health Sciences",
+    "domain": "Homeopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Maharashtra University of Health Sciences",
+    "domain": "Homeopathy",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Tamil Nadu Dr. MGR Medical University",
+    "domain": "Siddha",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  },
+  {
+    "universityName": "Rajiv Gandhi University of Health Sciences",
+    "domain": "Unani",
+    "qualificationLevel": "pg",
+    "version": "2025",
+    "effectiveYear": 2025,
+    "rulesJson": {
+      "paper": "A4, 80 GSM bond",
+      "font": "Arial 11pt body, 14pt bold chapter titles",
+      "spacing": "1.5 line spacing",
+      "margins": "Left 1.5 inch, others 1 inch",
+      "pageLimitMin": 50,
+      "pageLimitMax": 150,
+      "binding": "Hard binding",
+      "referencing": "Vancouver",
+      "language": "British English",
+      "plagiarismMaxPercent": 10,
+      "preliminaryPagination": "Roman numerals centered at bottom",
+      "bodyPagination": "Arabic numerals centered at bottom"
+    }
+  }
+]

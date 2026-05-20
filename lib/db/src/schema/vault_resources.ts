@@ -17,6 +17,13 @@ export const vaultResourcesTable = pgTable("vault_resources", {
   journal: text("journal"),
   doi: text("doi"),
   tags: text("tags"),
+  storagePath: text("storage_path"),
+  mimeType: text("mime_type"),
+  processingStatus: text("processing_status", {
+    enum: ["pending", "processing", "ready", "failed"],
+  })
+    .notNull()
+    .default("ready"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

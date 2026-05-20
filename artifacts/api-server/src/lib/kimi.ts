@@ -1,22 +1,8 @@
-import OpenAI from "openai";
-import { logger } from "./logger";
+import { buildGenerateSystemPrompt } from "./academicPrompt";
+import { createKimiCompletion } from "./kimiModelRouter";
+import { getPrimaryModel } from "./kimiModels";
 
-let _client: OpenAI | null = null;
-
-function getClient(): OpenAI {
-  if (_client) return _client;
-  const apiKey = process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY ?? "";
-  if (!apiKey) {
-    logger.warn("KIMI_API_KEY / MOONSHOT_API_KEY not set — AI features will return an error");
-  }
-  _client = new OpenAI({
-    apiKey: apiKey || "placeholder",
-    baseURL: "https://api.moonshot.ai/v1",
-  });
-  return _client;
-}
-
-export const KIMI_MODEL = "moonshot-v1-8k";
+export const KIMI_MODEL = getPrimaryModel();
 
 export async function chat(
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
@@ -31,11 +17,9 @@ export async function chat(
     };
   }
 
-  const client = getClient();
-  const response = await client.chat.completions.create({
-    model: KIMI_MODEL,
+  const { result: response } = await createKimiCompletion({
     messages,
-    max_tokens: options?.maxTokens ?? 2048,
+    max_tokens: options?.maxTokens ?? 8192,
     temperature: 0.7,
   });
 
@@ -56,6 +40,8 @@ export async function generateContent(
     qualification: string;
     tone?: string;
     wordLimit?: number;
+    contextBlock?: string;
+    vaultResourceCount?: number;
   },
 ): Promise<{ content: string; tokensUsed: number }> {
   const toneMap: Record<string, string> = {
@@ -70,11 +56,14 @@ export async function generateContent(
     ? ` Target approximately ${context.wordLimit} words.`
     : "";
 
-  const systemPrompt = `You are a scholarly writing assistant specializing in Indian medical research.
-You help ${context.qualification} scholars in ${context.domain} medicine write high-quality thesis content.
-Write in ${toneDesc}.${wordHint}
-Follow standard academic thesis conventions. Cite placeholders like [Author, Year] where references would go.
-Do not use emojis. Write with precision, clarity, and authority appropriate for a medical thesis.`;
+  const systemPrompt = buildGenerateSystemPrompt({
+    qualification: context.qualification,
+    domain: context.domain,
+    toneDesc,
+    wordHint,
+    contextBlock: context.contextBlock,
+    vaultResourceCount: context.vaultResourceCount,
+  });
 
   return chat(
     [
@@ -84,6 +73,6 @@ Do not use emojis. Write with precision, clarity, and authority appropriate for 
         content: `I am writing the "${context.sectionTitle}" section (${context.sectionType}) of my thesis titled "${context.workspaceTitle}".\n\n${prompt}`,
       },
     ],
-    { maxTokens: context.wordLimit ? Math.ceil(context.wordLimit * 1.5) : 2048 },
+    { maxTokens: context.wordLimit ? Math.ceil(context.wordLimit * 1.5) : 8192 },
   );
 }

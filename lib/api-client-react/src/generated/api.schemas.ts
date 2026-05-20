@@ -47,9 +47,18 @@ export interface University {
   state: string;
 }
 
+export type UserProfileRole = typeof UserProfileRole[keyof typeof UserProfileRole];
+
+
+export const UserProfileRole = {
+  scholar: 'scholar',
+  admin: 'admin',
+} as const;
+
 export interface UserProfile {
   id: number;
-  clerkUserId: string;
+  supabaseUserId?: string | null;
+  role?: UserProfileRole;
   fullName: string;
   email: string;
   domain: string;
@@ -90,6 +99,21 @@ export const WorkspaceStatus = {
   archived: 'archived',
 } as const;
 
+export type WorkspaceWorkflowState = typeof WorkspaceWorkflowState[keyof typeof WorkspaceWorkflowState];
+
+
+export const WorkspaceWorkflowState = {
+  init: 'init',
+  pre_setup: 'pre_setup',
+  locked_in: 'locked_in',
+  section_build: 'section_build',
+  review: 'review',
+  complete: 'complete',
+  archived: 'archived',
+} as const;
+
+export type WorkspacePreThesisChecklist = {[key: string]: boolean};
+
 export interface Workspace {
   id: number;
   userId: number;
@@ -102,10 +126,31 @@ export interface Workspace {
   /** @nullable */
   guideName?: string | null;
   /** @nullable */
+  coGuideName?: string | null;
+  /** @nullable */
   collegeName?: string | null;
+  /**
+     * Indian state or union territory of the institution
+     * @nullable
+     */
+  state?: string | null;
   /** @nullable */
   universityName?: string | null;
   status: WorkspaceStatus;
+  workflowState: WorkspaceWorkflowState;
+  /** @nullable */
+  preThesisDraftMd?: string | null;
+  /** @nullable */
+  preThesisLockedMd?: string | null;
+  /** @nullable */
+  preThesisMdHash?: string | null;
+  preThesisChecklist?: WorkspacePreThesisChecklist;
+  /** @nullable */
+  researchNotes?: string | null;
+  /** @nullable */
+  lastLiveVerifiedAt?: string | null;
+  /** @nullable */
+  lockedAt?: string | null;
   totalSections: number;
   completedSections: number;
   createdAt: string;
@@ -134,6 +179,51 @@ export interface ActivityEvent {
   createdAt: string;
 }
 
+/**
+ * Indian state or union territory of the institution
+ */
+export type WorkspaceInputState = typeof WorkspaceInputState[keyof typeof WorkspaceInputState];
+
+
+export const WorkspaceInputState = {
+  Andaman_and_Nicobar_Islands: 'Andaman and Nicobar Islands',
+  Andhra_Pradesh: 'Andhra Pradesh',
+  Arunachal_Pradesh: 'Arunachal Pradesh',
+  Assam: 'Assam',
+  Bihar: 'Bihar',
+  Chandigarh: 'Chandigarh',
+  Chhattisgarh: 'Chhattisgarh',
+  Dadra_and_Nagar_Haveli_and_Daman_and_Diu: 'Dadra and Nagar Haveli and Daman and Diu',
+  Delhi: 'Delhi',
+  Goa: 'Goa',
+  Gujarat: 'Gujarat',
+  Haryana: 'Haryana',
+  Himachal_Pradesh: 'Himachal Pradesh',
+  Jammu_and_Kashmir: 'Jammu and Kashmir',
+  Jharkhand: 'Jharkhand',
+  Karnataka: 'Karnataka',
+  Kerala: 'Kerala',
+  Ladakh: 'Ladakh',
+  Lakshadweep: 'Lakshadweep',
+  Madhya_Pradesh: 'Madhya Pradesh',
+  Maharashtra: 'Maharashtra',
+  Manipur: 'Manipur',
+  Meghalaya: 'Meghalaya',
+  Mizoram: 'Mizoram',
+  Nagaland: 'Nagaland',
+  Odisha: 'Odisha',
+  Puducherry: 'Puducherry',
+  Punjab: 'Punjab',
+  Rajasthan: 'Rajasthan',
+  Sikkim: 'Sikkim',
+  Tamil_Nadu: 'Tamil Nadu',
+  Telangana: 'Telangana',
+  Tripura: 'Tripura',
+  Uttar_Pradesh: 'Uttar Pradesh',
+  Uttarakhand: 'Uttarakhand',
+  West_Bengal: 'West Bengal',
+} as const;
+
 export interface WorkspaceInput {
   /** @minLength 2 */
   title: string;
@@ -141,9 +231,55 @@ export interface WorkspaceInput {
   domain: string;
   qualification?: string;
   guideName?: string;
+  /** Co-guide or co-supervisor name (optional) */
+  coGuideName?: string;
   collegeName?: string;
+  /** Indian state or union territory of the institution */
+  state?: WorkspaceInputState;
   universityName?: string;
 }
+
+export type WorkspaceUpdateState = typeof WorkspaceUpdateState[keyof typeof WorkspaceUpdateState];
+
+
+export const WorkspaceUpdateState = {
+  Andaman_and_Nicobar_Islands: 'Andaman and Nicobar Islands',
+  Andhra_Pradesh: 'Andhra Pradesh',
+  Arunachal_Pradesh: 'Arunachal Pradesh',
+  Assam: 'Assam',
+  Bihar: 'Bihar',
+  Chandigarh: 'Chandigarh',
+  Chhattisgarh: 'Chhattisgarh',
+  Dadra_and_Nagar_Haveli_and_Daman_and_Diu: 'Dadra and Nagar Haveli and Daman and Diu',
+  Delhi: 'Delhi',
+  Goa: 'Goa',
+  Gujarat: 'Gujarat',
+  Haryana: 'Haryana',
+  Himachal_Pradesh: 'Himachal Pradesh',
+  Jammu_and_Kashmir: 'Jammu and Kashmir',
+  Jharkhand: 'Jharkhand',
+  Karnataka: 'Karnataka',
+  Kerala: 'Kerala',
+  Ladakh: 'Ladakh',
+  Lakshadweep: 'Lakshadweep',
+  Madhya_Pradesh: 'Madhya Pradesh',
+  Maharashtra: 'Maharashtra',
+  Manipur: 'Manipur',
+  Meghalaya: 'Meghalaya',
+  Mizoram: 'Mizoram',
+  Nagaland: 'Nagaland',
+  Odisha: 'Odisha',
+  Puducherry: 'Puducherry',
+  Punjab: 'Punjab',
+  Rajasthan: 'Rajasthan',
+  Sikkim: 'Sikkim',
+  Tamil_Nadu: 'Tamil Nadu',
+  Telangana: 'Telangana',
+  Tripura: 'Tripura',
+  Uttar_Pradesh: 'Uttar Pradesh',
+  Uttarakhand: 'Uttarakhand',
+  West_Bengal: 'West Bengal',
+} as const;
 
 export type WorkspaceUpdateStatus = typeof WorkspaceUpdateStatus[keyof typeof WorkspaceUpdateStatus];
 
@@ -161,7 +297,9 @@ export interface WorkspaceUpdate {
   domain?: string;
   qualification?: string;
   guideName?: string;
+  coGuideName?: string;
   collegeName?: string;
+  state?: WorkspaceUpdateState;
   universityName?: string;
   status?: WorkspaceUpdateStatus;
 }
@@ -222,6 +360,12 @@ export interface Section {
   /** @nullable */
   wordCount?: number | null;
   /** @nullable */
+  targetPages?: number | null;
+  /** @nullable */
+  minPages?: number | null;
+  /** @nullable */
+  maxPages?: number | null;
+  /** @nullable */
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -259,6 +403,9 @@ export interface SectionInput {
   content?: string;
   status?: SectionInputStatus;
   order?: number;
+  targetPages?: number;
+  minPages?: number;
+  maxPages?: number;
   notes?: string;
 }
 
@@ -294,6 +441,9 @@ export interface SectionUpdate {
   content?: string;
   status?: SectionUpdateStatus;
   order?: number;
+  targetPages?: number;
+  minPages?: number;
+  maxPages?: number;
   notes?: string;
 }
 
@@ -450,4 +600,18 @@ export const ListWorkspacesStatus = {
   completed: 'completed',
   archived: 'archived',
 } as const;
+
+export type GetWorkspaceWorkflow200 = {
+  workflowState: string;
+  allowedTransitions: string[];
+};
+
+export type TransitionWorkspaceWorkflowBody = {
+  targetState: string;
+  reason?: string;
+};
+
+export type ListDepartmentsParams = {
+domain?: string;
+};
 

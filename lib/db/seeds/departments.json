@@ -1,0 +1,947 @@
+[
+  {
+    "domain": "Allopathy",
+    "name": "Anatomy",
+    "slug": "anatomy",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Physiology",
+    "slug": "physiology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Biochemistry",
+    "slug": "biochemistry",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Pharmacology",
+    "slug": "pharmacology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Microbiology",
+    "slug": "microbiology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Pathology",
+    "slug": "pathology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Forensic Medicine",
+    "slug": "forensic-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Community Medicine",
+    "slug": "community-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "General Medicine",
+    "slug": "general-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "General Surgery",
+    "slug": "general-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Obstetrics and Gynaecology",
+    "slug": "obstetrics-and-gynaecology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Paediatrics",
+    "slug": "paediatrics",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Radiodiagnosis",
+    "slug": "radiodiagnosis",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Radiotherapy",
+    "slug": "radiotherapy",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Anaesthesiology",
+    "slug": "anaesthesiology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Dermatology",
+    "slug": "dermatology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Psychiatry",
+    "slug": "psychiatry",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Ophthalmology",
+    "slug": "ophthalmology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "ENT",
+    "slug": "ent",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Orthopaedics",
+    "slug": "orthopaedics",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Plastic Surgery",
+    "slug": "plastic-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Urology",
+    "slug": "urology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Nephrology",
+    "slug": "nephrology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Neurology",
+    "slug": "neurology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Neurosurgery",
+    "slug": "neurosurgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Cardiology",
+    "slug": "cardiology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Cardiothoracic and Vascular Surgery",
+    "slug": "cardiothoracic-and-vascular-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Gastroenterology",
+    "slug": "gastroenterology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Hematology",
+    "slug": "hematology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Medical Oncology",
+    "slug": "medical-oncology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Surgical Oncology",
+    "slug": "surgical-oncology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Pulmonary Medicine",
+    "slug": "pulmonary-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Physical Medicine and Rehabilitation",
+    "slug": "physical-medicine-and-rehabilitation",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Emergency Medicine",
+    "slug": "emergency-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Transfusion Medicine",
+    "slug": "transfusion-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Nuclear Medicine",
+    "slug": "nuclear-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Clinical Immunology",
+    "slug": "clinical-immunology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Endocrinology",
+    "slug": "endocrinology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Rheumatology",
+    "slug": "rheumatology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Infectious Diseases",
+    "slug": "infectious-diseases",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Critical Care Medicine",
+    "slug": "critical-care-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Neonatology",
+    "slug": "neonatology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Maternal and Child Health",
+    "slug": "maternal-and-child-health",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Community Health",
+    "slug": "community-health",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Hospital Administration",
+    "slug": "hospital-administration",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Medical Genetics",
+    "slug": "medical-genetics",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Geriatric Medicine",
+    "slug": "geriatric-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Palliative Medicine",
+    "slug": "palliative-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Sports Medicine",
+    "slug": "sports-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Aviation Medicine",
+    "slug": "aviation-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Tropical Medicine",
+    "slug": "tropical-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Occupational Health",
+    "slug": "occupational-health",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Family Medicine",
+    "slug": "family-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Oral and Maxillofacial Surgery",
+    "slug": "oral-and-maxillofacial-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Vascular Surgery",
+    "slug": "vascular-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Pediatric Surgery",
+    "slug": "pediatric-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Neonatal Surgery",
+    "slug": "neonatal-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Allopathy",
+    "name": "Burns and Plastic Surgery",
+    "slug": "burns-and-plastic-surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NMC"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Kayachikitsa",
+    "slug": "kayachikitsa",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Panchakarma",
+    "slug": "panchakarma",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Shalya Tantra",
+    "slug": "shalya-tantra",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Shalakya Tantra",
+    "slug": "shalakya-tantra",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Stri Roga and Prasuti Tantra",
+    "slug": "stri-roga-and-prasuti-tantra",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Kaumarbhritya",
+    "slug": "kaumarbhritya",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Swasthavritta",
+    "slug": "swasthavritta",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Dravyaguna",
+    "slug": "dravyaguna",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Rasashastra and Bhaishajya Kalpana",
+    "slug": "rasashastra-and-bhaishajya-kalpana",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Roga Nidan and Vikriti Vigyan",
+    "slug": "roga-nidan-and-vikriti-vigyan",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Samhita and Siddhanta",
+    "slug": "samhita-and-siddhanta",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Agad Tantra",
+    "slug": "agad-tantra",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Anatomy (Rachana Sharir)",
+    "slug": "anatomy-rachana-sharir",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Physiology (Kriya Sharir)",
+    "slug": "physiology-kriya-sharir",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Biochemistry",
+    "slug": "biochemistry",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Ayurveda",
+    "name": "Pharmacology",
+    "slug": "pharmacology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Organon of Medicine",
+    "slug": "organon-of-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Repertory",
+    "slug": "repertory",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Materia Medica",
+    "slug": "materia-medica",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Practice of Medicine",
+    "slug": "practice-of-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Homeopathic Pharmacy",
+    "slug": "homeopathic-pharmacy",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Paediatrics",
+    "slug": "paediatrics",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Psychiatry",
+    "slug": "psychiatry",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Obstetrics and Gynaecology",
+    "slug": "obstetrics-and-gynaecology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Surgery",
+    "slug": "surgery",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Community Medicine",
+    "slug": "community-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Pathology",
+    "slug": "pathology",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Homeopathy",
+    "name": "Forensic Medicine",
+    "slug": "forensic-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Maruthuvam",
+    "slug": "maruthuvam",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Sirappu Maruthuvam",
+    "slug": "sirappu-maruthuvam",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Pillaippini Maruthuvam",
+    "slug": "pillaippini-maruthuvam",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Nanju Noolum Maruthuva Neethi Noolum",
+    "slug": "nanju-noolum-maruthuva-neethi-noolum",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Noi Nadal",
+    "slug": "noi-nadal",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Gunapadam",
+    "slug": "gunapadam",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Udal Koorugal",
+    "slug": "udal-koorugal",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Siddha Maruthuva Adippagam",
+    "slug": "siddha-maruthuva-adippagam",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Community Medicine",
+    "slug": "community-medicine",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Siddha",
+    "name": "Siddha Pharmacy",
+    "slug": "siddha-pharmacy",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Moalijat",
+    "slug": "moalijat",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Kulliyat",
+    "slug": "kulliyat",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Tahaffuzi wa Samaji Tib",
+    "slug": "tahaffuzi-wa-samaji-tib",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Ilmul Advia",
+    "slug": "ilmul-advia",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Jarahat",
+    "slug": "jarahat",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Amraz-e-Atfal",
+    "slug": "amraz-e-atfal",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Amraz-e-Niswan",
+    "slug": "amraz-e-niswan",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Ilaj bit Tadbeer",
+    "slug": "ilaj-bit-tadbeer",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  },
+  {
+    "domain": "Unani",
+    "name": "Niswan wa Qabalat",
+    "slug": "niswan-wa-qabalat",
+    "qualificationLevels": [
+      "pg"
+    ],
+    "regulatoryBody": "NCISM"
+  }
+]

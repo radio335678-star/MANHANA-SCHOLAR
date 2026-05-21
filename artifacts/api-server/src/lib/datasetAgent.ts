@@ -1,7 +1,14 @@
 /**
- * Dataset Streaming Agent — mirrors the Pre-Thesis agent pattern.
- * Manages an in-memory WorkbookSpec across up to MAX_TOOL_ROUNDS Kimi calls.
- * Emits DatasetAgentEvent objects via onEvent for SSE delivery.
+ * Premium Dataset Streaming Agent — standalone pipeline.
+ *
+ * Loads ALL research context (pre-thesis, vault, synopsis, methodology, chart uploads)
+ * upfront in parallel and embeds it directly in the system prompt.
+ * Kimi starts with the full study design — no warmup tool call required.
+ *
+ * Tools: read_sheet_state | read_full_context | apply_sheet_patch |
+ *        generate_sample_rows | add_formula_column | validate_sheet | commit_version
+ *
+ * MAX_TOOL_ROUNDS: 10 — supports complex multi-sheet, multi-step builds.
  */
 import OpenAI from "openai";
 import { db } from "@workspace/db";
@@ -11,7 +18,6 @@ import {
   workspacesTable,
   eq,
   and,
-  desc,
 } from "@workspace/db";
 import { createKimiCompletion } from "./kimiModelRouter";
 import { hasKimiKey } from "./kimiTools";
@@ -19,10 +25,10 @@ import { buildAssistantToolCallMessage, extractReasoning } from "./kimiFormulaTo
 import {
   buildDatasetAgentSystemPrompt,
   buildDatasetAgentTools,
-  type DatasetAgentContext,
+  type DatasetAgentPromptContext,
 } from "./datasetAgentPrompt";
 import { applySheetPatch, validateWorkbook, workbookSummary } from "./datasetPatch";
-import { buildDatasetGenerationContext, loadMethodsExcerpt } from "./datasetContext";
+import { loadDatasetAgentContext } from "./datasetContext";
 import { buildXlsxFromSpec, computeBasicStats } from "./excelBuilder";
 import {
   uploadBuffer,
@@ -33,7 +39,7 @@ import { saveArtifactToVault } from "./vaultArtifact";
 import type { WorkbookSpec } from "./sheetGeneration";
 import { logger } from "./logger";
 
-const MAX_TOOL_ROUNDS = 6;
+const MAX_TOOL_ROUNDS = 10;
 
 export type DatasetAgentEvent =
   | { type: "thinking"; content: string }
@@ -85,14 +91,18 @@ async function loadWorkingWorkbook(chartId: number): Promise<WorkbookSpec | null
       "columns" in raw &&
       Array.isArray((raw as { columns: unknown[] }).columns)
     ) {
-      const legacy = raw as { name?: string; columns: WorkbookSpec["sheets"][0]["columns"]; sampleRows?: Record<string, unknown>[] };
+      const legacy = raw as {
+        name?: string;
+        columns: WorkbookSpec["sheets"][0]["columns"];
+        sampleRows?: Record<string, unknown>[];
+      };
       return {
         name: legacy.name ?? "MasterChart",
         sheets: [{ name: legacy.name ?? "MasterChart", columns: legacy.columns, sampleRows: legacy.sampleRows ?? [] }],
       };
     }
   } catch {
-    // malformed JSON — start fresh
+    // Malformed JSON — start fresh
   }
   return null;
 }
@@ -135,18 +145,15 @@ async function commitVersion(
     });
   }
 
-  const [version] = await db
-    .insert(masterChartVersionsTable)
-    .values({
-      chartId,
-      version: newVersion,
-      storagePath,
-      schemaJson: workbook as unknown as Record<string, unknown>,
-      statsSummary: stats as unknown as Record<string, unknown>,
-      vaultResourceId: vaultResourceId ?? null,
-      modelUsed: "dataset-agent",
-    })
-    .returning();
+  await db.insert(masterChartVersionsTable).values({
+    chartId,
+    version: newVersion,
+    storagePath,
+    schemaJson: workbook as unknown as Record<string, unknown>,
+    statsSummary: stats as unknown as Record<string, unknown>,
+    vaultResourceId: vaultResourceId ?? null,
+    modelUsed: "dataset-agent",
+  });
 
   await db
     .update(masterChartsTable)
@@ -162,6 +169,67 @@ async function commitVersion(
 
   logger.info({ workspaceId, chartId, version: newVersion }, "Dataset agent committed version");
   return { version: newVersion, vaultResourceId };
+}
+
+/**
+ * Generate realistic sample rows for a sheet using a provided schema.
+ * Returns an array of row objects with plausible values.
+ */
+function generateRealisticRows(
+  sheet: WorkbookSpec["sheets"][0],
+  count: number,
+  studyNotes: string,
+): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 1; i <= count; i++) {
+    const row: Record<string, unknown> = {};
+    for (const col of sheet.columns) {
+      const h = col.header;
+      const options = col.validation?.options;
+
+      if (options?.length) {
+        row[h] = options[i % options.length];
+        continue;
+      }
+
+      if (col.type === "date") {
+        const base = new Date(2022, 0, 1);
+        base.setDate(base.getDate() + (i * 7));
+        row[h] = base.toISOString().slice(0, 10);
+        continue;
+      }
+
+      if (col.type === "number") {
+        const hLow = h.toLowerCase();
+        if (/patient.*id|pt_id/i.test(h)) { row[h] = `PT${String(i).padStart(3, "0")}`; continue; }
+        if (/age/i.test(hLow)) { row[h] = 25 + (i * 7) % 40; continue; }
+        if (/bmi/i.test(hLow)) { row[h] = parseFloat((18.5 + (i * 0.4) % 16.5).toFixed(1)); continue; }
+        if (/height|ht/i.test(hLow)) { row[h] = 155 + (i * 3) % 30; continue; }
+        if (/weight|wt/i.test(hLow)) { row[h] = 50 + (i * 2) % 40; continue; }
+        if (/sbp|systolic/i.test(hLow)) { row[h] = 110 + (i * 3) % 60; continue; }
+        if (/dbp|diastolic/i.test(hLow)) { row[h] = 70 + (i * 2) % 30; continue; }
+        if (/hb|haemoglobin|hemoglobin/i.test(hLow)) { row[h] = parseFloat((9 + (i * 0.3) % 6).toFixed(1)); continue; }
+        if (/glucose|sugar|rbs|fbs/i.test(hLow)) { row[h] = 80 + (i * 5) % 120; continue; }
+        if (/creatinine/i.test(hLow)) { row[h] = parseFloat((0.6 + (i * 0.05) % 1.4).toFixed(2)); continue; }
+        if (/score|scale|vas|vrs|nrs/i.test(hLow)) { row[h] = (i * 3) % 11; continue; }
+        if (/duration|days|months|years/i.test(hLow)) { row[h] = 1 + (i * 3) % 60; continue; }
+        // Generic number — plausible range 1–100
+        row[h] = Math.round((i * 13) % 100) + 1;
+        continue;
+      }
+
+      // string
+      const hLow = h.toLowerCase();
+      if (/patient.*id|pt_id|id/i.test(h)) { row[h] = `PT${String(i).padStart(3, "0")}`; continue; }
+      if (/sex|gender/i.test(hLow)) { row[h] = i % 2 === 0 ? "M" : "F"; continue; }
+      if (/group|arm|treatment/i.test(hLow)) { row[h] = i % 2 === 0 ? "Case" : "Control"; continue; }
+      if (/diagnosis|diag/i.test(hLow)) { row[h] = studyNotes ? `Study case ${i}` : `Diagnosis ${i}`; continue; }
+      if (/remarks|notes|comment/i.test(hLow)) { row[h] = "—"; continue; }
+      row[h] = `Value_${i}`;
+    }
+    rows.push(row);
+  }
+  return rows;
 }
 
 export async function runDatasetAgentChat(params: {
@@ -180,6 +248,7 @@ export async function runDatasetAgentChat(params: {
     return { assistantContent: msg, totalTokens: 0 };
   }
 
+  // ── 1. Fetch chart record ───────────────────────────────────────────────────
   const [chart] = await db
     .select()
     .from(masterChartsTable)
@@ -191,37 +260,24 @@ export async function runDatasetAgentChat(params: {
     return { assistantContent: msg, totalTokens: 0 };
   }
 
-  const [ws] = await db
-    .select({ title: workspacesTable.title, domain: workspacesTable.domain })
-    .from(workspacesTable)
-    .where(eq(workspacesTable.id, workspaceId))
-    .limit(1);
+  // ── 2. Load ALL context in parallel ────────────────────────────────────────
+  const [ctx, workingWorkbookInit] = await Promise.all([
+    loadDatasetAgentContext(workspaceId, chartId),
+    loadWorkingWorkbook(chartId),
+  ]);
 
-  let workingWorkbook: WorkbookSpec | null = await loadWorkingWorkbook(chartId);
+  let workingWorkbook: WorkbookSpec | null = workingWorkbookInit;
   let versionCommitted = false;
 
-  const contextBundle = await buildDatasetGenerationContext(
-    workspaceId,
-    "",
-    undefined,
-    "",
-    "Summarize available research context",
-  );
-
-  const agentCtx: DatasetAgentContext = {
-    workspaceName: ws?.title ?? "Workspace",
-    domain: ws?.domain ?? "Clinical Research",
+  // ── 3. Build rich system prompt with full context embedded ─────────────────
+  const promptCtx: DatasetAgentPromptContext = {
     chartName: chart.name,
     chartMode: chart.mode,
     workbook: workingWorkbook,
-    contextBundle: {
-      hasPreThesis: contextBundle.hasPreThesis,
-      hasVault: contextBundle.hasVault,
-      hasUploads: contextBundle.hasUploads,
-    },
+    ctx,
   };
 
-  const systemPrompt = buildDatasetAgentSystemPrompt(agentCtx);
+  const systemPrompt = buildDatasetAgentSystemPrompt(promptCtx);
   const tools = buildDatasetAgentTools();
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -233,6 +289,7 @@ export async function runDatasetAgentChat(params: {
   let totalTokens = 0;
   let assistantContent = "";
 
+  // ── 4. Agentic loop ────────────────────────────────────────────────────────
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const { result: response } = await createKimiCompletion({
       messages,
@@ -268,12 +325,15 @@ export async function runDatasetAgentChat(params: {
       const fn = (tc as { function: { name: string; arguments: string } }).function;
       const name = fn.name;
 
-      // ── read_sheet_state ──
+      // ── read_sheet_state ──────────────────────────────────────────────────
       if (name === "read_sheet_state") {
         onEvent({ type: "tool_start", tool: "read_sheet_state", message: "Reading current sheet schema…" });
         let result: string;
         if (!workingWorkbook) {
-          result = JSON.stringify({ status: "empty", message: "No workbook exists yet. Ask the user what columns they need or use read_context_bundle to infer the schema." });
+          result = JSON.stringify({
+            status: "empty",
+            message: "No workbook exists yet. Use apply_sheet_patch with action='add_sheet' to create the first sheet.",
+          });
         } else {
           const validation = validateWorkbook(workingWorkbook);
           result = JSON.stringify({
@@ -283,60 +343,56 @@ export async function runDatasetAgentChat(params: {
               name: s.name,
               columnCount: s.columns.length,
               rowCount: s.sampleRows?.length ?? 0,
-              columns: s.columns.map((c) => ({ header: c.header, type: c.type })),
+              columns: s.columns.map((c) => ({ header: c.header, type: c.type, validation: c.validation })),
             })),
             validationSummary: validation,
           });
         }
-        onEvent({ type: "tool_done", tool: "read_sheet_state", message: workingWorkbook ? `Loaded ${workingWorkbook.sheets.length} sheet(s)` : "No workbook yet", ok: true });
+        onEvent({
+          type: "tool_done",
+          tool: "read_sheet_state",
+          message: workingWorkbook ? `Loaded ${workingWorkbook.sheets.length} sheet(s)` : "No workbook yet",
+          ok: true,
+        });
         messages.push({ role: "tool", tool_call_id: tc.id, content: result });
         continue;
       }
 
-      // ── read_context_bundle ──
-      if (name === "read_context_bundle") {
-        onEvent({ type: "tool_start", tool: "read_context_bundle", message: "Loading workspace context…" });
-        let toolResult: string;
-        try {
-          const methodsText = await loadMethodsExcerpt(workspaceId);
-          const bundle = await buildDatasetGenerationContext(
-            workspaceId,
-            "",
-            userMessage,
-            methodsText,
-            "Summarize available research context",
-          );
-          toolResult = JSON.stringify({
-            ok: true,
-            hasPreThesis: bundle.hasPreThesis,
-            hasVault: bundle.hasVault,
-            hasUploads: bundle.hasUploads,
-            contextSnippet: bundle.fullContext.slice(0, 8000),
-          });
-          onEvent({ type: "tool_done", tool: "read_context_bundle", message: "Context loaded", ok: true });
-        } catch (err) {
-          toolResult = JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Context load failed" });
-          onEvent({ type: "tool_done", tool: "read_context_bundle", message: "Context load failed", ok: false });
-        }
-        messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+      // ── read_full_context ─────────────────────────────────────────────────
+      if (name === "read_full_context") {
+        onEvent({ type: "tool_start", tool: "read_full_context", message: "Loading full research context…" });
+        const contextResult = JSON.stringify({
+          ok: true,
+          hasPreThesis: ctx.hasPreThesis,
+          hasVault: ctx.hasVault,
+          hasUploads: ctx.hasUploads,
+          hasMethodology: ctx.hasMethodology,
+          vaultCount: ctx.vaultCount,
+          fullContext: ctx.fullContext || "No context available yet. The workspace may not have pre-thesis setup, vault files, or chart uploads.",
+        });
+        onEvent({ type: "tool_done", tool: "read_full_context", message: `Full context loaded (${ctx.fullContext.length} chars)`, ok: true });
+        messages.push({ role: "tool", tool_call_id: tc.id, content: contextResult });
         continue;
       }
 
-      // ── apply_sheet_patch ──
+      // ── apply_sheet_patch ─────────────────────────────────────────────────
       if (name === "apply_sheet_patch") {
         onEvent({ type: "tool_start", tool: "apply_sheet_patch", message: "Applying sheet changes…" });
         let toolResult: string;
-        let ok = true;
         try {
           const args = JSON.parse(fn.arguments || "{}") as unknown;
 
           if (!workingWorkbook) {
-            const action = args && typeof args === "object" ? (args as Record<string, unknown>).action : undefined;
+            const action =
+              args && typeof args === "object"
+                ? (args as Record<string, unknown>).action
+                : undefined;
             if (action === "add_sheet") {
-              // Bootstrap an empty workbook so the first add_sheet can create the initial sheet.
               workingWorkbook = { name: chart.name, sheets: [] };
             } else {
-              throw new Error("No workbook exists yet. First use read_context_bundle to understand the study design, then use apply_sheet_patch with action='add_sheet' to create the initial sheet.");
+              throw new Error(
+                "No workbook exists yet. Use apply_sheet_patch with action='add_sheet' to create the initial sheet.",
+              );
             }
           }
 
@@ -347,7 +403,6 @@ export async function runDatasetAgentChat(params: {
           toolResult = JSON.stringify({ ok: true, summary, state: workbookSummary(updated) });
           onEvent({ type: "tool_done", tool: "apply_sheet_patch", message: summary, ok: true });
         } catch (err) {
-          ok = false;
           const errMsg = err instanceof Error ? err.message : "Patch failed";
           toolResult = JSON.stringify({ ok: false, error: errMsg });
           onEvent({ type: "tool_done", tool: "apply_sheet_patch", message: errMsg, ok: false });
@@ -356,7 +411,96 @@ export async function runDatasetAgentChat(params: {
         continue;
       }
 
-      // ── validate_sheet ──
+      // ── generate_sample_rows ──────────────────────────────────────────────
+      if (name === "generate_sample_rows") {
+        onEvent({ type: "tool_start", tool: "generate_sample_rows", message: "Generating sample data…" });
+        let toolResult: string;
+        try {
+          if (!workingWorkbook || workingWorkbook.sheets.length === 0) {
+            throw new Error("No workbook sheets exist yet. Create a sheet first with apply_sheet_patch.");
+          }
+          const args = JSON.parse(fn.arguments || "{}") as {
+            sheetIndex?: number;
+            count?: number;
+            studyNotes?: string;
+          };
+          const sheetIdx = Math.min(args.sheetIndex ?? 0, workingWorkbook.sheets.length - 1);
+          const rowCount = Math.min(Math.max(args.count ?? 40, 10), 80);
+          const studyNotes = args.studyNotes ?? ctx.domain ?? "";
+
+          const generatedRows = generateRealisticRows(workingWorkbook.sheets[sheetIdx], rowCount, studyNotes);
+
+          const { workbook: updated, summary } = applySheetPatch(workingWorkbook, {
+            action: "add_rows",
+            sheetIndex: sheetIdx,
+            rows: generatedRows,
+          });
+          workingWorkbook = updated;
+
+          onEvent({ type: "sheet_updated", workbook: updated, summary });
+          toolResult = JSON.stringify({
+            ok: true,
+            rowsGenerated: generatedRows.length,
+            sheetName: workingWorkbook.sheets[sheetIdx]?.name,
+            summary,
+          });
+          onEvent({ type: "tool_done", tool: "generate_sample_rows", message: `Generated ${generatedRows.length} sample rows`, ok: true });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : "Row generation failed";
+          toolResult = JSON.stringify({ ok: false, error: errMsg });
+          onEvent({ type: "tool_done", tool: "generate_sample_rows", message: errMsg, ok: false });
+        }
+        messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+        continue;
+      }
+
+      // ── add_formula_column ────────────────────────────────────────────────
+      if (name === "add_formula_column") {
+        onEvent({ type: "tool_start", tool: "add_formula_column", message: "Adding formula column…" });
+        let toolResult: string;
+        try {
+          if (!workingWorkbook || workingWorkbook.sheets.length === 0) {
+            throw new Error("No workbook sheets exist yet. Create a sheet first.");
+          }
+          const args = JSON.parse(fn.arguments || "{}") as {
+            sheetIndex?: number;
+            header: string;
+            formula: string;
+            afterHeader?: string;
+            sampleValue?: number;
+          };
+          if (!args.header?.trim()) throw new Error("header is required for add_formula_column");
+          if (!args.formula?.trim()) throw new Error("formula is required for add_formula_column");
+
+          const sheetIdx = Math.min(args.sheetIndex ?? 0, workingWorkbook.sheets.length - 1);
+
+          const newCol = {
+            header: args.header.trim(),
+            type: "number" as const,
+            validation: { formula: args.formula.trim() },
+          };
+
+          const { workbook: updated, summary } = applySheetPatch(workingWorkbook, {
+            action: "add_columns",
+            sheetIndex: sheetIdx,
+            columns: [newCol],
+            afterHeader: args.afterHeader,
+          });
+          workingWorkbook = updated;
+
+          onEvent({ type: "sheet_updated", workbook: updated, summary });
+          toolResult = JSON.stringify({ ok: true, summary, column: newCol.header, formula: args.formula });
+          onEvent({ type: "tool_done", tool: "add_formula_column", message: `Added formula column: ${args.header}`, ok: true });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : "add_formula_column failed";
+          toolResult = JSON.stringify({ ok: false, error: errMsg });
+          onEvent({ type: "tool_done", tool: "add_formula_column", message: errMsg, ok: false });
+        }
+        messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+        continue;
+      }
+
+      // ── validate_sheet ────────────────────────────────────────────────────
       if (name === "validate_sheet") {
         onEvent({ type: "tool_start", tool: "validate_sheet", message: "Validating workbook structure…" });
         if (!workingWorkbook) {
@@ -368,20 +512,20 @@ export async function runDatasetAgentChat(params: {
           onEvent({ type: "tool_done", tool: "validate_sheet", message: "No workbook", ok: false });
           continue;
         }
-        const result = validateWorkbook(workingWorkbook);
-        messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ ok: true, ...result }) });
+        const validation = validateWorkbook(workingWorkbook);
+        messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ ok: true, ...validation }) });
         onEvent({
           type: "tool_done",
           tool: "validate_sheet",
-          message: result.valid
-            ? `Valid — ${result.columnCount} columns, ${result.rowCount} rows, ${result.sheetCount} sheet(s)`
-            : `${result.issues.length} issue(s) found`,
-          ok: result.valid,
+          message: validation.valid
+            ? `Valid — ${validation.columnCount} columns, ${validation.rowCount} rows, ${validation.sheetCount} sheet(s)`
+            : `${validation.issues.length} issue(s) found`,
+          ok: validation.valid,
         });
         continue;
       }
 
-      // ── commit_version ──
+      // ── commit_version ────────────────────────────────────────────────────
       if (name === "commit_version") {
         if (versionCommitted) {
           messages.push({
@@ -403,7 +547,6 @@ export async function runDatasetAgentChat(params: {
         }
 
         onEvent({ type: "tool_start", tool: "commit_version", message: "Saving new version…" });
-
         let toolResult: string;
         try {
           const args = JSON.parse(fn.arguments || "{}") as { summary?: string };
@@ -431,7 +574,7 @@ export async function runDatasetAgentChat(params: {
         continue;
       }
 
-      // ── unknown tool ──
+      // ── unknown tool ──────────────────────────────────────────────────────
       messages.push({
         role: "tool",
         tool_call_id: tc.id,

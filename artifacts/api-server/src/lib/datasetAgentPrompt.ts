@@ -1,72 +1,113 @@
 import type OpenAI from "openai";
 import type { WorkbookSpec } from "./sheetGeneration";
-import type { DatasetContextBundle } from "./datasetContext";
+import type { DatasetAgentContextBundle } from "./datasetContext";
 
-export type DatasetAgentContext = {
-  workspaceName: string;
-  domain: string;
+export type DatasetAgentPromptContext = {
   chartName: string;
   chartMode: string;
   workbook: WorkbookSpec | null;
-  contextBundle: Omit<DatasetContextBundle, "prompt" | "fullContext">;
-  unresolvedIssues?: string[];
+  ctx: DatasetAgentContextBundle;
 };
 
-export function buildDatasetAgentSystemPrompt(ctx: DatasetAgentContext): string {
-  const workbookBlock = ctx.workbook
-    ? `Current workbook JSON (THIS is your source of truth — patch this, never regenerate from scratch unless asked):
-${JSON.stringify(ctx.workbook, null, 2)}`
-    : `No workbook exists yet. Use the \`build_from_context\` action via the prompt to generate the initial schema, then apply patches.`;
+export function buildDatasetAgentSystemPrompt(p: DatasetAgentPromptContext): string {
+  const { chartName, chartMode, workbook, ctx } = p;
 
-  const contextLine = [
-    ctx.contextBundle.hasPreThesis ? "Pre-thesis locked" : "No pre-thesis yet",
-    ctx.contextBundle.hasVault ? "Research vault files available" : "No vault files",
-    ctx.contextBundle.hasUploads ? "Context uploads present" : "No context uploads",
-  ].join(" | ");
+  const workbookBlock = workbook
+    ? `=== CURRENT WORKBOOK (your live source of truth — patch this, never regenerate from scratch unless asked) ===
+${JSON.stringify(workbook, null, 2)}`
+    : `No workbook exists yet. You must create it using apply_sheet_patch with action="add_sheet".`;
 
-  const issueBlock =
-    ctx.unresolvedIssues?.length
-      ? `\nValidation issues to fix:\n${ctx.unresolvedIssues.map((i) => `- ${i}`).join("\n")}`
-      : "";
+  const vaultLine = ctx.hasVault
+    ? `${ctx.vaultCount} research paper(s) / files in vault — call read_full_context for full text`
+    : "No vault files";
 
-  return `You are the MANTHANA Dataset Agent — a world-class expert at designing clinical and research master chart Excel workbooks for Indian medical university theses (MD/MS/DM/MCh).
+  const uploadsLine = ctx.hasUploads
+    ? "Chart context files uploaded — call read_full_context to access them"
+    : "No chart context uploads";
 
-Your job is to help the scholar build a production-quality master chart dataset that perfectly matches their study design, protocol, and pre-thesis setup.
+  const methodsLine = ctx.hasMethodology
+    ? "Methodology section available — included in read_full_context"
+    : "No methodology section";
 
-The scholar NEVER edits schema JSON manually. All changes go through your tools.
+  const studySetupBlock = ctx.preThesisBlock
+    ? `=== STUDY SETUP — READ THIS FIRST ===
+${ctx.preThesisBlock}`
+    : "No pre-thesis or synopsis available. Use the user's message to infer the study design.";
 
-Workspace: ${ctx.workspaceName}
+  const vaultMetaBlock = ctx.vaultMetaBlock
+    ? `=== RESEARCH VAULT CATALOG ===
+${ctx.vaultMetaBlock.slice(0, 6000)}`
+    : "";
+
+  return `You are the MANTHANA Excel Master — a world-class clinical data specialist dedicated to building production-quality master chart Excel workbooks for Indian medical university theses (MD/MS/DM/MCh/PhD).
+
+You operate as a completely standalone, premium-grade agent. You have full access to the scholar's study design, research vault, and all uploaded context files. You never need to ask the user for study information — you already have it embedded in this system prompt and available via tools.
+
+Your only job: build, refine, and perfect the master chart Excel workbook. Every sheet must precisely match the study protocol.
+
+Workspace: ${ctx.workspaceTitle}
 Domain: ${ctx.domain}
-Chart: ${ctx.chartName} (mode: ${ctx.chartMode})
-Context: ${contextLine}${issueBlock}
+Chart: ${chartName} (mode: ${chartMode})
+Context available: ${vaultLine} | ${uploadsLine} | ${methodsLine}
+
+${studySetupBlock}
+
+${vaultMetaBlock}
 
 ${workbookBlock}
 
-TOOL USAGE RULES (follow in order):
-1. Always call \`read_sheet_state\` first if the user asks about the current schema or wants to make incremental edits.
-2. Use \`read_context_bundle\` when the user refers to their study design, synopsis, vault papers, or uploaded files.
-3. Apply all schema changes using \`apply_sheet_patch\`. Use small, targeted patches — do not regenerate entire sheets unless the user explicitly asks.
-4. After making changes, call \`validate_sheet\` to catch issues before committing.
-5. Only call \`commit_version\` when the schema is correct and the user confirms (or asks to save). This writes XLSX to storage and creates a new version row.
-6. NEVER emit raw JSON workbook specs in your assistant response text — use the tools.
+═══════════════════════════════════════
+TOOL USAGE PROTOCOL (always follow this order):
+═══════════════════════════════════════
+1. For NEW charts: call read_full_context first to read study design + vault files, then build with apply_sheet_patch (add_sheet).
+2. For EDITS: call read_sheet_state first to see current columns, then apply targeted patches.
+3. After building columns: call generate_sample_rows to fill realistic mock data aligned with the study.
+4. For derived columns (BMI, age, ratios): use add_formula_column.
+5. Always call validate_sheet before committing.
+6. Call commit_version only when the schema is correct and user is satisfied.
+7. NEVER emit raw JSON workbook specs in your response text — all changes go through tools only.
 
+═══════════════════════════════════════
 EXCEL BEST PRACTICES:
-- Column headers must be unique, concise (≤20 chars), and follow standard clinical nomenclature (e.g. "Age_yr", "BMI_kgm2", "HbA1c_%").
-- Use type "number" for all numeric measurements, "date" for dates, "string" for categorical/free-text.
-- Add validation options for categorical columns (e.g. Sex: ["M","F","Other"], Group: ["Case","Control"]).
-- Each sheet name ≤31 chars, Excel-safe (no special characters).
-- Split multi-group or multi-timepoint studies across separate sheets.
-- Aim for 20–80 realistic sample rows that match the actual study data.
-
-After every tool action, confirm what you changed in plain, friendly language.`;
+═══════════════════════════════════════
+- Column headers: unique, concise (≤20 chars), standard clinical nomenclature (e.g. "Age_yr", "BMI_kgm2", "HbA1c_%", "SBP_mmHg").
+- Types: "number" for all measurements, "date" for dates, "string" for categorical/free-text/IDs.
+- Validation: always add options for categoricals (Sex: ["M","F","Other"], Group: ["Case","Control","Placebo"]).
+- Sheet names: ≤31 chars, Excel-safe (no :/?*[]\\ characters).
+- Multi-group or multi-timepoint studies: split into separate sheets (Patient Info | Lab Values | Outcomes | Follow-Up).
+- Sample rows: 30–80 realistic rows matching the actual study population. Use plausible ranges (Age 18–65, BMI 18–35, etc.).
+- PatientID column: always present, format PT001..PT080.
+- After every tool action: confirm what changed in 1–2 plain sentences.`;
 }
+
+// ─── Tool definitions ────────────────────────────────────────────────────────
+
+const READ_SHEET_STATE_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "read_sheet_state",
+    description:
+      "Read the current working workbook: all sheets, columns, row counts, and validation rules. Call before making any edits to understand what already exists.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
+
+const READ_FULL_CONTEXT_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "read_full_context",
+    description:
+      "Read the complete workspace context: full pre-thesis setup, all research vault file contents, chart-specific uploaded files, and methodology. Use when building a new chart or when the user refers to their study design, protocol, or uploaded documents. Returns up to 150,000 characters of combined context.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
 
 const APPLY_PATCH_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   type: "function",
   function: {
     name: "apply_sheet_patch",
     description:
-      "Apply a structured, validated patch to the working workbook. Supports add/remove/rename columns, add/remove rows, add/remove sheets, set column validation, reorder columns, replace a sheet, or rename a sheet. Always prefer small targeted patches over full regeneration.",
+      "Apply a structured, validated patch to the working workbook. Use for: adding/removing/renaming columns, adding/removing rows, adding/removing sheets, setting column validation, reordering columns, replacing a sheet, or renaming a sheet. Always prefer small targeted patches over full regeneration.",
     parameters: {
       type: "object",
       properties: {
@@ -80,10 +121,7 @@ const APPLY_PATCH_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
           ],
           description: "The type of patch to apply",
         },
-        sheetIndex: {
-          type: "number",
-          description: "0-based index of the target sheet (default 0)",
-        },
+        sheetIndex: { type: "number", description: "0-based index of the target sheet (default 0)" },
         columns: {
           type: "array",
           description: "For add_columns: array of { header, type, validation? }",
@@ -97,10 +135,7 @@ const APPLY_PATCH_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
             required: ["header", "type"],
           },
         },
-        afterHeader: {
-          type: "string",
-          description: "For add_columns: insert after this column header",
-        },
+        afterHeader: { type: "string", description: "For add_columns: insert after this header" },
         headers: {
           type: "array",
           items: { type: "string" },
@@ -139,30 +174,55 @@ const APPLY_PATCH_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   },
 };
 
-const READ_SHEET_STATE_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
+const GENERATE_SAMPLE_ROWS_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   type: "function",
   function: {
-    name: "read_sheet_state",
+    name: "generate_sample_rows",
     description:
-      "Read the current working workbook schema: all sheets, columns, row count, and basic stats. Call this before making any edits to understand the current state.",
+      "Generate realistic clinical sample rows for the current workbook schema, aligned with the study design. Rows must have plausible values for every column (correct ranges, realistic distributions, matching categorical options). Use this after columns are finalized.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        sheetIndex: {
+          type: "number",
+          description: "0-based index of the sheet to populate (default 0)",
+        },
+        count: {
+          type: "number",
+          description: "Number of rows to generate (10–80, default 40)",
+        },
+        studyNotes: {
+          type: "string",
+          description: "Optional short note about the study population or group distribution to guide row generation",
+        },
+      },
       required: [],
     },
   },
 };
 
-const READ_CONTEXT_BUNDLE_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
+const ADD_FORMULA_COLUMN_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   type: "function",
   function: {
-    name: "read_context_bundle",
+    name: "add_formula_column",
     description:
-      "Read the workspace context: locked pre-thesis setup, research vault sources, and uploaded context files. Use this when the user refers to their study design, methodology, or uploaded documents.",
+      "Add a derived or calculated column to a sheet. Use for columns like BMI (from height + weight), age from DOB, delta scores (post - pre), ratios, or any value computed from other columns. The column is added with type 'number' and a formula note in the validation field.",
     parameters: {
       type: "object",
-      properties: {},
-      required: [],
+      properties: {
+        sheetIndex: { type: "number", description: "0-based sheet index (default 0)" },
+        header: { type: "string", description: "Column header for the derived column (e.g. 'BMI_kgm2')" },
+        formula: {
+          type: "string",
+          description: "Plain-language formula description (e.g. 'Weight_kg / (Height_m * Height_m)'). This is stored as a note, not an Excel formula.",
+        },
+        afterHeader: { type: "string", description: "Insert after this existing column header" },
+        sampleValue: {
+          type: "number",
+          description: "A typical/example value for this derived column (used in sample rows)",
+        },
+      },
+      required: ["header", "formula"],
     },
   },
 };
@@ -172,12 +232,8 @@ const VALIDATE_SHEET_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   function: {
     name: "validate_sheet",
     description:
-      "Validate the current working workbook. Checks for duplicate headers, empty sheets, conflicting sheet names, and structural issues. Always call before commit_version.",
-    parameters: {
-      type: "object",
-      properties: {},
-      required: [],
-    },
+      "Validate the current working workbook. Checks for duplicate headers, empty sheets, conflicting sheet names, missing required columns, and structural issues. Always call before commit_version.",
+    parameters: { type: "object", properties: {}, required: [] },
   },
 };
 
@@ -186,7 +242,7 @@ const COMMIT_VERSION_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   function: {
     name: "commit_version",
     description:
-      "Save the working workbook as a new versioned XLSX file. Writes to storage, mirrors to Research Vault, and creates a new version row. Only call after validate_sheet passes and the user is satisfied with the schema.",
+      "Save the working workbook as a new versioned XLSX file. Writes to Supabase Storage, mirrors to Research Vault, and creates a new version row. Only call after validate_sheet passes and the user is satisfied with the schema.",
     parameters: {
       type: "object",
       properties: {
@@ -203,8 +259,10 @@ const COMMIT_VERSION_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
 export function buildDatasetAgentTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
   return [
     READ_SHEET_STATE_TOOL,
-    READ_CONTEXT_BUNDLE_TOOL,
+    READ_FULL_CONTEXT_TOOL,
     APPLY_PATCH_TOOL,
+    GENERATE_SAMPLE_ROWS_TOOL,
+    ADD_FORMULA_COLUMN_TOOL,
     VALIDATE_SHEET_TOOL,
     COMMIT_VERSION_TOOL,
   ];

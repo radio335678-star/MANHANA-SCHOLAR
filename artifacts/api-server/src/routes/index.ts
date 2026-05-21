@@ -13,6 +13,7 @@ import workflowRouter from "./workflow";
 import preThesisRouter from "./preThesis";
 import preThesisChatRouter from "./preThesisChat";
 import masterChartsRouter from "./masterCharts";
+import visionReaderRouter from "./visionReader";
 import thesisAutoCompleteRouter from "./thesisAutoComplete";
 
 const router: IRouter = Router();
@@ -31,6 +32,7 @@ router.use(workflowRouter);
 router.use(preThesisRouter);
 router.use(preThesisChatRouter);
 router.use(masterChartsRouter);
+router.use(visionReaderRouter);
 router.use(thesisAutoCompleteRouter);
 
 export default router;

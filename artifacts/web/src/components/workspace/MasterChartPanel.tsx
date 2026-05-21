@@ -33,7 +33,9 @@ import {
   Maximize2,
   Minimize2,
   Sparkles,
+  Eye,
 } from "lucide-react";
+import { VisionReaderPanel } from "@/components/workspace/VisionReaderPanel";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { MasterChartAiAssistant } from "@/components/workspace/MasterChartAiAssistant";
@@ -121,6 +123,7 @@ export function MasterChartPanel({
   const [statusText, setStatusText] = useState<string>();
   const [deletingVersion, setDeletingVersion] = useState<number | null>(null);
   const [lastPrompt, setLastPrompt] = useState<string | null>(null);
+  const [panelTab, setPanelTab] = useState<"dataset" | "vision">("dataset");
 
   // Streaming agent hook
   const {
@@ -830,8 +833,52 @@ export function MasterChartPanel({
     </>
   ) : null;
 
+  // ── Vision Reader sync callback ────────────────────────────────────────────
+  const handleVisionSendToDataset = useCallback((text: string) => {
+    setPanelTab("dataset");
+    // Small delay so the tab switch renders before we fire the message
+    setTimeout(() => void handleGenerate(text), 80);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   const innerContent = (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {/* ── Panel sub-tabs ─────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border/40 w-fit">
+        <button
+          onClick={() => setPanelTab("dataset")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+            panelTab === "dataset"
+              ? "bg-background text-foreground shadow-sm border border-border/60"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Database className="w-3.5 h-3.5" />
+          Dataset Builder
+        </button>
+        <button
+          onClick={() => setPanelTab("vision")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+            panelTab === "vision"
+              ? "bg-background text-foreground shadow-sm border border-border/60"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Eye className="w-3.5 h-3.5" />
+          Vision Reader
+        </button>
+      </div>
+
+      {/* ── Vision Reader panel ──────────────────────────────────────────────── */}
+      {panelTab === "vision" ? (
+        <VisionReaderPanel
+          workspaceId={workspaceId}
+          onSendToDataset={selectedId ? handleVisionSendToDataset : undefined}
+        />
+      ) : (
+      <>
       {guideOpen && (
         <div className="p-5 border border-violet-200 bg-violet-50/80 rounded-xl space-y-4 relative">
           <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-8 w-8" onClick={dismissGuide}>
@@ -946,6 +993,8 @@ export function MasterChartPanel({
             </Button>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

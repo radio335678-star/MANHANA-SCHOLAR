@@ -515,19 +515,25 @@ router.post(
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
+    // Padding helps some proxies flush the SSE stream immediately.
+    res.write(`: ${" ".repeat(2048)}\n\n`);
 
+    type FlushableResponse = Response & { flush?: () => void };
     const send = (event: Record<string, unknown>) => {
       try {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
+        (res as FlushableResponse).flush?.();
       } catch {
         // client disconnected — ignore
       }
     };
 
-    // Heartbeat every 12s to keep proxy/browser alive during long Kimi calls
+    send({ type: "ping" });
+
+    // Heartbeat every 8s to keep proxy/browser alive during long Kimi calls
     const heartbeat = setInterval(() => {
       send({ type: "ping" });
-    }, 12_000);
+    }, 8_000);
 
     let assistantContent = "";
     let totalTokens = 0;

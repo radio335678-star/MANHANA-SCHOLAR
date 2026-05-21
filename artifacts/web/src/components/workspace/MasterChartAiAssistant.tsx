@@ -66,21 +66,26 @@ function isVisionFile(f: ChartContextFile) {
 function ThinkingAnimation({ statusText, thinkingContent }: { statusText?: string; thinkingContent?: string }) {
   const [stepIdx, setStepIdx] = useState(0);
   useEffect(() => {
+    if (thinkingContent?.trim()) return undefined;
     const timer = setInterval(() => setStepIdx((i) => (i + 1) % THINKING_STEPS.length), 2200);
     return () => clearInterval(timer);
-  }, []);
+  }, [thinkingContent]);
+
+  const displayStatus =
+    statusText ??
+    (thinkingContent?.trim() ? "Thinking through your dataset…" : THINKING_STEPS[stepIdx]);
 
   return (
     <div className="mr-auto bg-secondary/60 rounded-2xl px-3.5 py-2.5 max-w-[90%] space-y-1.5 border border-border/40">
       <div className="flex items-center gap-2 text-xs text-primary">
         <Loader2 className="w-3 h-3 animate-spin shrink-0" />
         <span className="animate-in fade-in slide-in-from-left-1 duration-300">
-          {statusText ?? THINKING_STEPS[stepIdx]}
+          {displayStatus}
         </span>
       </div>
-      {thinkingContent && (
-        <p className="text-[10px] text-muted-foreground italic leading-relaxed line-clamp-2">
-          {thinkingContent.slice(0, 160)}…
+      {thinkingContent?.trim() && (
+        <p className="text-[10px] text-muted-foreground italic leading-relaxed whitespace-pre-wrap break-words max-h-24 overflow-y-auto">
+          {thinkingContent.slice(-320)}
         </p>
       )}
       <div className="flex gap-1">
@@ -191,7 +196,7 @@ export function MasterChartAiAssistant({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, busy, statusText]);
+  }, [messages, busy, statusText, thinking, streaming, toolStatus]);
 
   // Auto-grow textarea
   useEffect(() => {
@@ -336,9 +341,11 @@ export function MasterChartAiAssistant({
             </div>
           )}
 
-          {messages.map((m) => {
+          {messages.map((m, idx) => {
             const isError = m.role === "assistant" && m.content.startsWith("__error__");
             const displayContent = isError ? m.content.slice("__error__".length) : m.content;
+            const isStreamingAssistant =
+              streaming && m.role === "assistant" && idx === messages.length - 1;
             // Hide empty assistant bubbles (placeholders not yet populated)
             if (m.role === "assistant" && !displayContent.trim() && !busy && !streaming) return null;
             return (
@@ -353,7 +360,12 @@ export function MasterChartAiAssistant({
                       : "mr-auto bg-secondary/70 text-foreground rounded-bl-md border border-border/30",
                 )}
               >
-                <p className="whitespace-pre-wrap">{displayContent}</p>
+                <p className="whitespace-pre-wrap">
+                  {displayContent}
+                  {isStreamingAssistant && displayContent.trim() && (
+                    <span className="inline-block w-0.5 h-3.5 bg-primary ml-0.5 animate-pulse align-text-bottom" />
+                  )}
+                </p>
                 {isError && onRetry && (
                   <Button
                     size="sm"
@@ -377,10 +389,12 @@ export function MasterChartAiAssistant({
               <ToolPill tool="" message={toolStatus} active={true} />
             </div>
           )}
-          {busy && !streaming && <ThinkingAnimation statusText={statusText} thinkingContent={thinking} />}
-          {streaming && !toolStatus && (
+          {streaming && !toolStatus && !messages.some(
+            (m, idx) => m.role === "assistant" && idx === messages.length - 1 && m.content.trim(),
+          ) && (
             <ThinkingAnimation statusText={statusText ?? "Agent working…"} thinkingContent={thinking} />
           )}
+          {busy && !streaming && <ThinkingAnimation statusText={statusText} thinkingContent={thinking} />}
           {!busy && !streaming && lastErrorMsg && lastPrompt && onRetry && messages.length > 0 && (
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
               <RefreshCw className="w-3 h-3 shrink-0" />

@@ -4,7 +4,7 @@
  * New in this version:
  *  - Preflight feasibility gate: Kimi assesses canProceed before heavy tool loop
  *  - Hard 3-file cap: immediate user guidance when > MAX_CHART_CONTEXT_FILES uploaded
- *  - 105s timeout on the full agent loop
+ *  - 300s timeout on preflight + agent loop (override via DATASET_AGENT_TIMEOUT_MS)
  *  - SSE heartbeat support (ping events, fired by caller)
  *  - Build-intent auto-commit: agent is required to commit when user asks to build
  *  - History trimmed to 10 messages
@@ -22,9 +22,9 @@ import {
   eq,
   and,
 } from "@workspace/db";
-import { createKimiCompletion } from "./kimiModelRouter";
+import { createKimiCompletionStreaming } from "./kimiModelRouter";
 import { hasKimiKey } from "./kimiTools";
-import { buildAssistantToolCallMessage, extractReasoning } from "./kimiFormulaTools";
+import { buildAssistantToolCallMessage } from "./kimiFormulaTools";
 import {
   buildDatasetAgentSystemPrompt,
   buildDatasetPreflightPrompt,
@@ -52,7 +52,7 @@ import type { WorkbookSpec } from "./sheetGeneration";
 import { logger } from "./logger";
 
 const MAX_TOOL_ROUNDS = 6;
-const AGENT_TIMEOUT_MS = 105_000;
+const AGENT_TIMEOUT_MS = Number(process.env.DATASET_AGENT_TIMEOUT_MS) || 300_000;
 
 export type DatasetAgentEvent =
   | { type: "thinking"; content: string }
@@ -276,16 +276,21 @@ async function runPreflight(
   const preflightPrompt = buildDatasetPreflightPrompt(snapshot);
 
   try {
-    const { result: response } = await createKimiCompletion({
-      messages: [
-        { role: "system", content: preflightPrompt },
-        { role: "user", content: snapshot.userMessage },
-      ],
-      max_tokens: 1200,
-      thinking: { type: "enabled" },
-    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
-      thinking?: { type: "enabled" | "disabled" };
-    });
+    const { result: response } = await createKimiCompletionStreaming(
+      {
+        messages: [
+          { role: "system", content: preflightPrompt },
+          { role: "user", content: snapshot.userMessage },
+        ],
+        max_tokens: 1200,
+        thinking: { type: "enabled" },
+      },
+      (ev) => {
+        if (ev.type === "thinking") {
+          onEvent({ type: "thinking", content: ev.content });
+        }
+      },
+    );
 
     const raw = response.choices[0]?.message?.content?.trim() ?? "";
 
@@ -499,30 +504,28 @@ export async function runDatasetAgentChat(params: {
   // ── 7. Agentic loop (with timeout) ─────────────────────────────────────────
   const agentLoop = async () => {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const { result: response } = await createKimiCompletion({
-        messages,
-        tools,
-        tool_choice: "auto",
-        max_tokens: 16384,
-        thinking: { type: "enabled" },
-      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
-        thinking?: { type: "enabled" | "disabled" };
-      });
+      const { result: response } = await createKimiCompletionStreaming(
+        {
+          messages,
+          tools,
+          tool_choice: "auto",
+          max_tokens: 16384,
+          thinking: { type: "enabled" },
+        },
+        (ev) => {
+          if (ev.type === "thinking") {
+            onEvent({ type: "thinking", content: ev.content });
+            return;
+          }
+          assistantContent += ev.content;
+          onEvent({ type: "token", content: ev.content });
+        },
+      );
 
       const choice = response.choices[0];
       totalTokens += response.usage?.total_tokens ?? 0;
       const msg = choice?.message;
       if (!msg) break;
-
-      const reasoning = extractReasoning(msg);
-      if (reasoning?.trim()) {
-        onEvent({ type: "thinking", content: reasoning.slice(0, 2000) });
-      }
-
-      if (msg.content?.trim()) {
-        assistantContent += msg.content;
-        onEvent({ type: "token", content: msg.content });
-      }
 
       const toolCalls = msg.tool_calls;
       if (!toolCalls?.length) break;

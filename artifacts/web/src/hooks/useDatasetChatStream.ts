@@ -102,13 +102,14 @@ export function useDatasetChatStream() {
             if (!line.startsWith("data: ")) continue;
             try {
               const event = JSON.parse(line.slice(6)) as DatasetChatStreamEvent;
+              onEvent(event);
 
               switch (event.type) {
                 case "token":
                   setStreamContent((prev) => prev + event.content);
                   break;
                 case "thinking":
-                  setThinking(event.content);
+                  setThinking((prev) => prev + event.content);
                   break;
                 case "tool_start":
                   setToolStatus(event.message);
@@ -124,11 +125,8 @@ export function useDatasetChatStream() {
                   break;
                 case "done":
                 case "error":
-                  // handled by caller
                   break;
               }
-
-              onEvent(event);
             } catch {
               /* ignore parse errors */
             }

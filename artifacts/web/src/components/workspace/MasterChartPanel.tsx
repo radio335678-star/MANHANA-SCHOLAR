@@ -285,9 +285,10 @@ export function MasterChartPanel({
     versionCache[selectedVersion] ?? versionCache[currentVersion] ?? null;
   // Show live workbook while streaming; keep showing it after stream if no committed version yet
   const activeSpec =
-    (streaming && liveSpec)
-      ? liveSpec
-      : liveSpec ?? cachedLivePreview?.schemaJson ?? activePreview?.schemaJson ?? { columns: [], sampleRows: [] };
+    liveSpec ??
+    cachedLivePreview?.schemaJson ??
+    activePreview?.schemaJson ??
+    { columns: [], sampleRows: [] };
   const workbookSheets = getWorkbookSheets(activeSpec);
   const totalCols = workbookSheets.reduce((n, s) => n + (s.columns?.length ?? 0), 0);
   const totalRows = workbookSheets.reduce((n, s) => n + (s.sampleRows?.length ?? 0), 0);
@@ -417,6 +418,10 @@ export function MasterChartPanel({
         getToken,
         (event: DatasetChatStreamEvent) => {
           switch (event.type) {
+            case "thinking":
+              setStatusText("Agent thinking…");
+              break;
+
             case "token":
               assistantBuffer += event.content;
               setMessages((m) =>
@@ -438,7 +443,6 @@ export function MasterChartPanel({
                 setHighlightHeaders(added);
                 setTimeout(() => setHighlightHeaders([]), 4000);
               }
-              // Update live preview in cache under a special key
               setVersionCache((prev) => ({
                 ...prev,
                 _live: {
@@ -448,8 +452,17 @@ export function MasterChartPanel({
                   vaultResourceId: undefined,
                 },
               }));
+              setStatusText(event.summary || "Spreadsheet updated");
               break;
             }
+
+            case "tool_start":
+              setStatusText(event.message);
+              break;
+
+            case "tool_done":
+              if (event.ok) setStatusText(undefined);
+              break;
 
             case "version_committed": {
               const vNum = event.version;

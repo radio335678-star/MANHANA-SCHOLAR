@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,8 +16,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 type DeleteWorkspaceDialogProps = {
@@ -46,22 +43,10 @@ export function DeleteWorkspaceDialog({
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [confirmTitle, setConfirmTitle] = useState("");
 
   const deleteWorkspace = useDeleteWorkspace();
 
-  useEffect(() => {
-    if (!open) {
-      setConfirmTitle("");
-    }
-  }, [open]);
-
-  const titleMatches =
-    confirmTitle.trim().toLowerCase() === workspaceTitle.trim().toLowerCase();
-
   const handleDelete = () => {
-    if (!titleMatches) return;
-
     deleteWorkspace.mutate(
       { id: workspaceId },
       {
@@ -96,32 +81,17 @@ export function DeleteWorkspaceDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete workspace permanently?</AlertDialogTitle>
           <AlertDialogDescription asChild>
-            <div className="space-y-3 text-left text-sm text-muted-foreground">
-              <p>
-                This will permanently delete <strong className="text-foreground">{workspaceTitle}</strong>,
-                including sections, vault resources, pre-thesis data, and exports. This action cannot be undone.
-              </p>
-              <div className="space-y-2">
-                <Label htmlFor="delete-workspace-confirm" className="text-foreground">
-                  Type the workspace title to confirm
-                </Label>
-                <Input
-                  id="delete-workspace-confirm"
-                  value={confirmTitle}
-                  onChange={(e) => setConfirmTitle(e.target.value)}
-                  placeholder={workspaceTitle}
-                  autoComplete="off"
-                  disabled={deleteWorkspace.isPending}
-                />
-              </div>
-            </div>
+            <p className="text-left text-sm text-muted-foreground">
+              This will permanently delete <strong className="text-foreground">{workspaceTitle}</strong>,
+              including sections, vault resources, pre-thesis data, and exports. This action cannot be undone.
+            </p>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deleteWorkspace.isPending}>Cancel</AlertDialogCancel>
           <Button
             variant="destructive"
-            disabled={!titleMatches || deleteWorkspace.isPending}
+            disabled={deleteWorkspace.isPending}
             onClick={handleDelete}
           >
             {deleteWorkspace.isPending ? (

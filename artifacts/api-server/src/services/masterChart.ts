@@ -175,8 +175,10 @@ export async function uploadChartContextFile(
     .select({ total: count() })
     .from(masterChartContextFilesTable)
     .where(eq(masterChartContextFilesTable.chartId, chartId));
-  if (Number(contextCount) >= 20) {
-    throw new Error("Maximum 20 context files per dataset. Remove a file before uploading more.");
+  if (Number(contextCount) >= 3) {
+    throw new Error(
+      "Maximum 3 context files per chart. Upload a small batch at a time — remove an existing file to add a new one.",
+    );
   }
 
   let extractedText: string;
@@ -195,23 +197,42 @@ export async function uploadChartContextFile(
       file.originalname,
     );
 
-    const usableChars = extractedText
+    // Unwrap Kimi JSON wrapper {"content":"..."} before evaluating quality
+    const unwrappedText = (() => {
+      const t = extractedText.trim();
+      if (t.startsWith("{") && t.includes('"content"')) {
+        try {
+          const parsed = JSON.parse(t) as { content?: string };
+          if (typeof parsed.content === "string") return parsed.content;
+        } catch { /* not valid JSON */ }
+      }
+      return t;
+    })();
+
+    const usableChars = unwrappedText
       .replace(/\[.*?\]/g, "")
       .replace(/extraction failed/gi, "")
       .trim().length;
 
-    const isPoorExtraction =
+    const isScannedOrPoor =
       usableChars < 300 ||
       extractedText.includes("extraction failed") ||
-      extractedText.includes("set KIMI_API_KEY");
+      extractedText.includes("set KIMI_API_KEY") ||
+      // Minified OCR: long text with almost no spaces (ratio < 2%)
+      (usableChars > 500 && (unwrappedText.match(/ /g)?.length ?? 0) / unwrappedText.length < 0.02) ||
+      // Single-line dump: lots of chars but almost no newlines
+      (usableChars > 2000 && (unwrappedText.match(/\n/g)?.length ?? 0) < 5);
 
-    if (isPoorExtraction && (file.mimetype.includes("pdf") || /\.pdf$/i.test(file.originalname))) {
-      // Scanned PDF — switch to vision path
+    if (isScannedOrPoor && (file.mimetype.includes("pdf") || /\.pdf$/i.test(file.originalname))) {
+      // Scanned or minified-OCR PDF — switch to vision path
       storagePath = await storeContextFileRaw(chartId, file.buffer, file.originalname, "application/pdf");
       extractedText = `[VISION_FILE: ${file.originalname}]`;
-      logger.info({ chartId, filename: file.originalname, usableChars }, "Context PDF stored as vision (scanned)");
-    } else if (!extractedText.trim() || isPoorExtraction) {
+      logger.info({ chartId, filename: file.originalname, usableChars }, "Context PDF stored as vision (scanned/poor OCR)");
+    } else if (!unwrappedText.trim() || isScannedOrPoor) {
       extractedText = `[Uploaded: ${file.originalname} — text could not be extracted; describe this file in chat and regenerate.]`;
+    } else if (unwrappedText !== extractedText.trim()) {
+      // Use the cleaner unwrapped version
+      extractedText = unwrappedText;
     }
   }
 

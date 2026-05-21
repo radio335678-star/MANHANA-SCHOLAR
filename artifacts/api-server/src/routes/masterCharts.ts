@@ -247,7 +247,7 @@ router.post(
 router.post(
   "/workspaces/:workspaceId/master-charts/:chartId/context",
   requireAuth,
-  upload.fields([{ name: "files", maxCount: 20 }, { name: "file", maxCount: 1 }]),
+  upload.fields([{ name: "files", maxCount: 3 }, { name: "file", maxCount: 1 }]),
   async (req, res): Promise<void> => {
     const dbUser = await requireDbUser(req, res);
     if (!dbUser) return;
@@ -288,7 +288,7 @@ router.post(
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Context upload failed";
-      const status = msg.includes("Maximum 20") ? 409 : msg.includes("not found") ? 404 : 500;
+      const status = msg.includes("Maximum 3") || msg.includes("Maximum 20") ? 409 : msg.includes("not found") ? 404 : 500;
       res.status(status).json({ error: msg });
     }
   },
@@ -495,16 +495,17 @@ router.post(
       content: body.data.content,
     });
 
-    // Load history (last 30 messages, skip the one we just inserted)
+    // Load history (last 10 messages, skip the one we just inserted)
     const historyRows = await db
       .select()
       .from(datasetChatMessagesTable)
       .where(eq(datasetChatMessagesTable.chartId, chartId))
       .orderBy(datasetChatMessagesTable.createdAt)
-      .limit(30);
+      .limit(12); // fetch 12, slice off last (the just-inserted user msg), use 10
 
     const history = historyRows
       .slice(0, -1)
+      .slice(-10)
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
@@ -516,11 +517,21 @@ router.post(
     res.flushHeaders();
 
     const send = (event: Record<string, unknown>) => {
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      try {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      } catch {
+        // client disconnected — ignore
+      }
     };
+
+    // Heartbeat every 12s to keep proxy/browser alive during long Kimi calls
+    const heartbeat = setInterval(() => {
+      send({ type: "ping" });
+    }, 12_000);
 
     let assistantContent = "";
     let totalTokens = 0;
+    let agentError: string | undefined;
 
     try {
       const result = await runDatasetAgentChat({
@@ -537,23 +548,33 @@ router.post(
       assistantContent = result.assistantContent || assistantContent;
       totalTokens = result.totalTokens;
     } catch (err) {
+      agentError = err instanceof Error ? err.message : "Agent failed";
       logger.error({ err, workspaceId, chartId }, "Dataset agent stream failed");
-      send({ type: "error", message: err instanceof Error ? err.message : "Agent failed" });
-    }
+      send({ type: "error", message: agentError });
+    } finally {
+      clearInterval(heartbeat);
 
-    // Persist assistant reply
-    if (assistantContent.trim()) {
+      // Always persist an assistant row so chat history is never silent after failure
+      const persistContent = assistantContent.trim()
+        ? assistantContent
+        : agentError
+          ? `__error__${agentError}`
+          : "Agent completed tool actions — check the spreadsheet for updates.";
+
       await db.insert(datasetChatMessagesTable).values({
         workspaceId,
         chartId,
         userId: dbUser.id,
         role: "assistant",
-        content: assistantContent || "Done.",
+        content: persistContent,
         tokensUsed: totalTokens,
+      }).catch((dbErr) => {
+        logger.error({ dbErr, chartId }, "Failed to persist assistant reply");
       });
-    }
 
-    res.end();
+      send({ type: "done", totalTokens, content: assistantContent });
+      res.end();
+    }
   },
 );
 

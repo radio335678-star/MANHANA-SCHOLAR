@@ -24,6 +24,9 @@ const MAX_VAULT_EXTRACT_PER_FILE = 40_000;
 const MAX_TOTAL_CONTEXT = 150_000;
 const MAX_CHART_CONTEXT = 120_000;
 
+/** Maximum context files per chart — enforced at upload and agent run time. */
+export const MAX_CHART_CONTEXT_FILES = 3;
+
 export type DatasetContextBundle = {
   prompt: string;
   fullContext: string;
@@ -98,6 +101,7 @@ async function loadVaultStorageExtracts(workspaceId: number): Promise<string> {
 
 /**
  * Load chart-specific context files uploaded in the Dataset tab.
+ * Uses the 3 most recently uploaded files only.
  * Exported so the agent can call it independently.
  */
 export async function loadChartContextFilesText(chartId: number): Promise<string> {
@@ -106,7 +110,7 @@ export async function loadChartContextFilesText(chartId: number): Promise<string
     .from(masterChartContextFilesTable)
     .where(eq(masterChartContextFilesTable.chartId, chartId))
     .orderBy(masterChartContextFilesTable.createdAt)
-    .limit(20);
+    .limit(MAX_CHART_CONTEXT_FILES);
 
   if (files.length === 0) return "";
 
@@ -118,7 +122,40 @@ export async function loadChartContextFilesText(chartId: number): Promise<string
     .slice(0, MAX_CHART_CONTEXT);
 }
 
-/** Load context files that should be handled vision-first (images / scanned PDFs). */
+export type ChartContextFileMeta = {
+  id: number;
+  filename: string;
+  route: "vision" | "text";
+  totalCount: number;
+};
+
+/**
+ * Load a compact catalog of context files for the preflight snapshot.
+ * Returns metadata only — no extracted text content.
+ */
+export async function loadChartContextFileCatalog(
+  chartId: number,
+): Promise<ChartContextFileMeta[]> {
+  const files = await db
+    .select({
+      id: masterChartContextFilesTable.id,
+      filename: masterChartContextFilesTable.filename,
+      extractedText: masterChartContextFilesTable.extractedText,
+    })
+    .from(masterChartContextFilesTable)
+    .where(eq(masterChartContextFilesTable.chartId, chartId))
+    .orderBy(masterChartContextFilesTable.createdAt);
+
+  return files.map((f) => ({
+    id: f.id,
+    filename: f.filename,
+    route: f.extractedText?.startsWith("[VISION_FILE:") ? "vision" : "text",
+    totalCount: files.length,
+  }));
+}
+
+/** Load context files that should be handled vision-first (images / scanned PDFs).
+ *  Uses the 3 most recently uploaded files only (same cap as text context). */
 export async function loadChartVisionFiles(chartId: number): Promise<
   Array<{ id: number; filename: string; mimeType: string | null; storagePath: string }>
 > {
@@ -133,7 +170,7 @@ export async function loadChartVisionFiles(chartId: number): Promise<
     .from(masterChartContextFilesTable)
     .where(eq(masterChartContextFilesTable.chartId, chartId))
     .orderBy(masterChartContextFilesTable.createdAt)
-    .limit(20);
+    .limit(MAX_CHART_CONTEXT_FILES);
 
   return files.filter(
     (f): f is typeof f & { storagePath: string } =>

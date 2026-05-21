@@ -9,6 +9,70 @@ export type DatasetAgentPromptContext = {
   ctx: DatasetAgentContextBundle;
 };
 
+export type PreflightSnapshot = {
+  workspaceTitle: string;
+  domain: string;
+  chartName: string;
+  chartMode: string;
+  workbookVersion: number;
+  hasWorkbook: boolean;
+  preThesisAvailable: boolean;
+  vaultFileCount: number;
+  contextFiles: Array<{ id: number; filename: string; route: "vision" | "text" }>;
+  contextFileCountTotal: number;
+  contextFileCountUsed: number;
+  userMessage: string;
+  buildIntentDetected: boolean;
+};
+
+export type PreflightResult = {
+  canProceed: boolean;
+  summary?: string;
+  reason?: string;
+  suggestions?: string[];
+};
+
+/** Build a compact preflight system prompt that instructs Kimi to return strict JSON. */
+export function buildDatasetPreflightPrompt(snapshot: PreflightSnapshot): string {
+  const fileList = snapshot.contextFiles
+    .map((f) => `  - "${f.filename}" (${f.route})`)
+    .join("\n");
+
+  return `You are the MANTHANA Excel Master — a clinical data specialist for Indian medical university theses.
+
+A researcher wants to use the AI Dataset Builder (master chart Excel generator) in their workspace.
+
+=== CURRENT WORKSPACE ENVIRONMENT ===
+Workspace: ${snapshot.workspaceTitle}
+Domain: ${snapshot.domain}
+Chart: "${snapshot.chartName}" (mode: ${snapshot.chartMode})
+Current workbook version: ${snapshot.workbookVersion} (${snapshot.hasWorkbook ? "has existing data" : "empty — never built"})
+Pre-thesis / study setup: ${snapshot.preThesisAvailable ? "YES — study design available" : "NOT YET DONE — no study setup"}
+Research vault: ${snapshot.vaultFileCount > 0 ? `${snapshot.vaultFileCount} papers/files uploaded` : "empty"}
+Context files for this chart (${snapshot.contextFileCountUsed} of ${snapshot.contextFileCountTotal} total used):
+${fileList || "  (none)"}
+Build intent detected: ${snapshot.buildIntentDetected ? "YES" : "no"}
+
+=== RESEARCHER'S MESSAGE ===
+"${snapshot.userMessage}"
+
+=== YOUR JOB ===
+Decide whether this task is achievable RIGHT NOW with the current environment. Consider:
+1. Is the task within scope? (Only Excel master chart work — NOT thesis writing, NOT formatting, NOT data analysis outside charts)
+2. Is there enough context to build/edit a meaningful chart? (pre-thesis OR context files OR clear prompt is sufficient)
+3. If the user is asking to build from documents — are documents available?
+
+IMPORTANT RULE: If context files exist (even text-only or vision), that is enough to build. Pre-thesis alone is also enough. A clear user prompt alone is enough for a basic chart. Only decline for genuine scope violations or if truly nothing is available to work from.
+
+Return ONLY a JSON object — no markdown, no explanation, just raw JSON:
+{
+  "canProceed": true or false,
+  "summary": "One sentence describing what you'll do (if canProceed=true)",
+  "reason": "Why you cannot proceed (if canProceed=false)",
+  "suggestions": ["Specific action 1", "Specific action 2"]
+}`;
+}
+
 export function buildDatasetAgentSystemPrompt(p: DatasetAgentPromptContext): string {
   const { chartName, chartMode, workbook, ctx } = p;
 
@@ -45,6 +109,8 @@ You operate as a completely standalone, premium-grade agent. You have full acces
 
 Your only job: build, refine, and perfect the master chart Excel workbook. Every sheet must precisely match the study protocol.
 
+NOTE: A preflight check already approved this request — proceed immediately to build or edit the chart. Do not re-evaluate feasibility.
+
 Workspace: ${ctx.workspaceTitle}
 Domain: ${ctx.domain}
 Chart: ${chartName} (mode: ${chartMode})
@@ -64,7 +130,12 @@ TOOL USAGE PROTOCOL (always follow this order):
 3. After building columns: call generate_sample_rows to fill realistic mock data aligned with the study.
 4. For derived columns (BMI, age, ratios): use add_formula_column.
 5. Always call validate_sheet before committing.
-6. Call commit_version only when the schema is correct and user is satisfied.
+6. MANDATORY BUILD RULE: When the user asks to BUILD, CREATE, or GENERATE a master chart — you MUST:
+   a. Apply all patches (apply_sheet_patch)
+   b. Generate sample rows (generate_sample_rows)
+   c. Validate (validate_sheet)
+   d. Commit immediately (commit_version) — DO NOT wait for user confirmation
+   Keep your chat reply under 3 sentences. Data goes in the sheet, not in markdown tables.
 7. NEVER emit raw JSON workbook specs in your response text — all changes go through tools only.
 
 ═══════════════════════════════════════
@@ -242,7 +313,7 @@ const COMMIT_VERSION_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   function: {
     name: "commit_version",
     description:
-      "Save the working workbook as a new versioned XLSX file. Writes to Supabase Storage, mirrors to Research Vault, and creates a new version row. Only call after validate_sheet passes and the user is satisfied with the schema.",
+      "Save the working workbook as a new versioned XLSX file. Writes to Supabase Storage, mirrors to Research Vault, and creates a new version row. Call after validate_sheet passes. For build/create/generate requests: call this IMMEDIATELY without waiting for user confirmation.",
     parameters: {
       type: "object",
       properties: {

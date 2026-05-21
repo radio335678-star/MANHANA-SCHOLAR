@@ -128,6 +128,7 @@ export function MasterChartPanel({
     thinking,
     toolStatus,
     liveWorkbook,
+    lastPingAt,
     sendMessage: streamSendMessage,
     resetStream,
   } = useDatasetChatStream();
@@ -275,13 +276,18 @@ export function MasterChartPanel({
     }
   }, [selectedId, loadDetail]);
 
-  // Use live workbook during streaming, otherwise use version cache
+  // Use live workbook during streaming OR immediately after stream ends (until version cache loads)
   const liveSpec = liveWorkbook
     ? parseSheetSpec(liveWorkbook as unknown as Record<string, unknown>)
     : null;
+  const cachedLivePreview = versionCache["_live" as unknown as number];
   const activePreview =
     versionCache[selectedVersion] ?? versionCache[currentVersion] ?? null;
-  const activeSpec = (streaming && liveSpec) ? liveSpec : (activePreview?.schemaJson ?? { columns: [], sampleRows: [] });
+  // Show live workbook while streaming; keep showing it after stream if no committed version yet
+  const activeSpec =
+    (streaming && liveSpec)
+      ? liveSpec
+      : liveSpec ?? cachedLivePreview?.schemaJson ?? activePreview?.schemaJson ?? { columns: [], sampleRows: [] };
   const workbookSheets = getWorkbookSheets(activeSpec);
   const totalCols = workbookSheets.reduce((n, s) => n + (s.columns?.length ?? 0), 0);
   const totalRows = workbookSheets.reduce((n, s) => n + (s.sampleRows?.length ?? 0), 0);
@@ -386,7 +392,12 @@ export function MasterChartPanel({
     };
     setMessages((m) => [...m, userMsg]);
     setBusy(true);
-    resetStream();
+    // Only reset the text/thinking content — keep liveWorkbook so spreadsheet stays visible
+    setVersionCache((prev) => {
+      const next = { ...prev };
+      delete next["_live" as unknown as number];
+      return next;
+    });
 
     // Stream buffer for accumulating assistant tokens
     let assistantBuffer = "";
@@ -723,7 +734,7 @@ export function MasterChartPanel({
     <MasterChartAiAssistant
       messages={messages}
       busy={busy || streaming}
-      statusText={toolStatus ?? statusText}
+      statusText={toolStatus ?? (lastPingAt && streaming ? "Agent still working…" : statusText)}
       thinking={thinking}
       toolStatus={toolStatus}
       streaming={streaming}
@@ -731,7 +742,21 @@ export function MasterChartPanel({
       lastPrompt={lastPrompt}
       onSend={(text) => void handleGenerate(text)}
       onRetry={lastPrompt ? () => void handleGenerate(lastPrompt) : undefined}
-      onContextUpload={handleContextUpload}
+      onContextUpload={async (files) => {
+        try {
+          await handleContextUpload(files);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Upload failed";
+          toast({
+            title: "Upload failed",
+            description: msg.includes("Maximum 3")
+              ? "Maximum 3 files — remove one first, then add the next batch."
+              : msg,
+            variant: "destructive",
+          });
+          throw err;
+        }
+      }}
       onContextDelete={handleContextDelete}
       onExpand={() => setLayoutMode("fullscreen")}
       onNewChat={handleNewChat}

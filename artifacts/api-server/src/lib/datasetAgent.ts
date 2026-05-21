@@ -1,14 +1,17 @@
 /**
  * Premium Dataset Streaming Agent — standalone pipeline.
  *
- * Loads ALL research context (pre-thesis, vault, synopsis, methodology, chart uploads)
- * upfront in parallel and embeds it directly in the system prompt.
- * Kimi starts with the full study design — no warmup tool call required.
+ * New in this version:
+ *  - Preflight feasibility gate: Kimi assesses canProceed before heavy tool loop
+ *  - Hard 3-file cap: immediate user guidance when > MAX_CHART_CONTEXT_FILES uploaded
+ *  - 105s timeout on the full agent loop
+ *  - SSE heartbeat support (ping events, fired by caller)
+ *  - Build-intent auto-commit: agent is required to commit when user asks to build
+ *  - History trimmed to 10 messages
+ *  - MAX_TOOL_ROUNDS reduced to 6 (preflight + auto-commit compensate)
  *
  * Tools: read_sheet_state | read_full_context | apply_sheet_patch |
  *        generate_sample_rows | add_formula_column | validate_sheet | commit_version
- *
- * MAX_TOOL_ROUNDS: 10 — supports complex multi-sheet, multi-step builds.
  */
 import OpenAI from "openai";
 import { db } from "@workspace/db";
@@ -24,11 +27,19 @@ import { hasKimiKey } from "./kimiTools";
 import { buildAssistantToolCallMessage, extractReasoning } from "./kimiFormulaTools";
 import {
   buildDatasetAgentSystemPrompt,
+  buildDatasetPreflightPrompt,
   buildDatasetAgentTools,
   type DatasetAgentPromptContext,
+  type PreflightSnapshot,
+  type PreflightResult,
 } from "./datasetAgentPrompt";
 import { applySheetPatch, validateWorkbook, workbookSummary } from "./datasetPatch";
-import { loadDatasetAgentContext, loadChartVisionFiles } from "./datasetContext";
+import {
+  loadDatasetAgentContext,
+  loadChartVisionFiles,
+  loadChartContextFileCatalog,
+  MAX_CHART_CONTEXT_FILES,
+} from "./datasetContext";
 import { buildXlsxFromSpec, computeBasicStats } from "./excelBuilder";
 import {
   uploadBuffer,
@@ -40,7 +51,8 @@ import { saveArtifactToVault } from "./vaultArtifact";
 import type { WorkbookSpec } from "./sheetGeneration";
 import { logger } from "./logger";
 
-const MAX_TOOL_ROUNDS = 10;
+const MAX_TOOL_ROUNDS = 6;
+const AGENT_TIMEOUT_MS = 105_000;
 
 export type DatasetAgentEvent =
   | { type: "thinking"; content: string }
@@ -49,10 +61,30 @@ export type DatasetAgentEvent =
   | { type: "tool_done"; tool: string; message: string; ok: boolean }
   | { type: "sheet_updated"; workbook: WorkbookSpec; summary: string }
   | { type: "version_committed"; version: number; vaultResourceId?: number; summary: string }
+  | { type: "ping" }
   | { type: "done"; totalTokens: number; content: string }
   | { type: "error"; message: string };
 
 type ChatHistoryItem = { role: "user" | "assistant"; content: string };
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms / 1000}s. Try with fewer files or a shorter prompt.`)),
+      ms,
+    );
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
+/** Detect whether the user's message intends to build / create / generate a chart. */
+function detectBuildIntent(message: string): boolean {
+  return /\b(build|create|generate|make|construct|design|start|set ?up|build out|add)\b.{0,60}\b(master ?chart|chart|sheet|workbook|excel|table|dataset)\b/i.test(message)
+    || /\b(master ?chart|chart|excel|workbook)\b.{0,30}\b(from|using|based on|with|for)\b/i.test(message);
+}
 
 async function loadWorkingWorkbook(chartId: number): Promise<WorkbookSpec | null> {
   const [chart] = await db
@@ -233,6 +265,53 @@ function generateRealisticRows(
   return rows;
 }
 
+// ── Preflight check ────────────────────────────────────────────────────────────
+
+async function runPreflight(
+  snapshot: PreflightSnapshot,
+  onEvent: (event: DatasetAgentEvent) => void,
+): Promise<PreflightResult> {
+  onEvent({ type: "thinking", content: "Checking if I can complete this with your current files and study setup…" });
+
+  const preflightPrompt = buildDatasetPreflightPrompt(snapshot);
+
+  try {
+    const { result: response } = await createKimiCompletion({
+      messages: [
+        { role: "system", content: preflightPrompt },
+        { role: "user", content: snapshot.userMessage },
+      ],
+      max_tokens: 1200,
+      thinking: { type: "enabled" },
+    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+      thinking?: { type: "enabled" | "disabled" };
+    });
+
+    const raw = response.choices[0]?.message?.content?.trim() ?? "";
+
+    // Strip markdown code fences if Kimi wrapped it
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+    try {
+      const parsed = JSON.parse(jsonStr) as PreflightResult;
+      if (typeof parsed.canProceed === "boolean") {
+        return parsed;
+      }
+    } catch {
+      // JSON parse failed — default to proceed
+    }
+
+    // If Kimi returned non-JSON or unparseable, default to proceed
+    return { canProceed: true, summary: "Analysed your request — proceeding to build." };
+  } catch (err) {
+    // Preflight Kimi call failed — allow main agent to proceed (degraded, not blocked)
+    logger.warn({ err }, "Preflight check failed, allowing agent to proceed");
+    return { canProceed: true, summary: "Ready to build your master chart." };
+  }
+}
+
+// ── Main agent entry point ──────────────────────────────────────────────────
+
 export async function runDatasetAgentChat(params: {
   workspaceId: number;
   chartId: number;
@@ -261,17 +340,77 @@ export async function runDatasetAgentChat(params: {
     return { assistantContent: msg, totalTokens: 0 };
   }
 
-  // ── 2. Load ALL context in parallel ────────────────────────────────────────
-  const [ctx, workingWorkbookInit, visionFiles] = await Promise.all([
+  // ── 2. Deterministic file-count check (no Kimi needed) ─────────────────────
+  const fileCatalog = await loadChartContextFileCatalog(chartId);
+  const totalFileCount = fileCatalog.length;
+  const usedFiles = fileCatalog.slice(-MAX_CHART_CONTEXT_FILES); // latest N
+
+  if (totalFileCount > MAX_CHART_CONTEXT_FILES) {
+    const overMsg =
+      `I can only process up to ${MAX_CHART_CONTEXT_FILES} context files at a time, but this chart has ${totalFileCount} files attached.\n\n` +
+      `Please **remove ${totalFileCount - MAX_CHART_CONTEXT_FILES} file(s)** — keep only the ${MAX_CHART_CONTEXT_FILES} most relevant ones (e.g. your Group B case sheets), then send your message again.\n\n` +
+      `Tip: Build the master chart with the first batch, then upload the next batch in a follow-up message.`;
+    onEvent({ type: "token", content: overMsg });
+    onEvent({ type: "done", totalTokens: 0, content: overMsg });
+    return { assistantContent: overMsg, totalTokens: 0 };
+  }
+
+  // ── 3. Load workspace context + workbook ────────────────────────────────────
+  const [ctx, workingWorkbookInit, visionFiles, wsRows] = await Promise.all([
     loadDatasetAgentContext(workspaceId, chartId),
     loadWorkingWorkbook(chartId),
     loadChartVisionFiles(chartId),
+    db
+      .select({ title: workspacesTable.title, domain: workspacesTable.domain })
+      .from(workspacesTable)
+      .where(eq(workspacesTable.id, workspaceId))
+      .limit(1),
   ]);
 
+  const buildIntentDetected = detectBuildIntent(userMessage);
+  const currentVersion = chart.currentVersion;
+
+  // ── 4. Preflight feasibility check ─────────────────────────────────────────
+  const snapshot: PreflightSnapshot = {
+    workspaceTitle: wsRows[0]?.title ?? ctx.workspaceTitle,
+    domain: wsRows[0]?.domain ?? ctx.domain,
+    chartName: chart.name,
+    chartMode: chart.mode,
+    workbookVersion: currentVersion,
+    hasWorkbook: workingWorkbookInit !== null,
+    preThesisAvailable: ctx.hasPreThesis,
+    vaultFileCount: ctx.vaultCount,
+    contextFiles: usedFiles.map((f) => ({ id: f.id, filename: f.filename, route: f.route })),
+    contextFileCountTotal: totalFileCount,
+    contextFileCountUsed: usedFiles.length,
+    userMessage,
+    buildIntentDetected,
+  };
+
+  const preflight = await runPreflight(snapshot, onEvent);
+
+  if (!preflight.canProceed) {
+    const reason = preflight.reason ?? "I'm not able to complete this request with the current environment.";
+    const suggestions = preflight.suggestions ?? [];
+    const suggestionsBlock = suggestions.length > 0
+      ? `\n\nHere's what you can do:\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join("\n")}`
+      : "";
+    const declineMsg = `${reason}${suggestionsBlock}`;
+    onEvent({ type: "token", content: declineMsg });
+    onEvent({ type: "done", totalTokens: 0, content: declineMsg });
+    logger.info({ chartId, reason: preflight.reason }, "Preflight declined");
+    return { assistantContent: declineMsg, totalTokens: 0 };
+  }
+
+  // Emit one-line confirmation before entering tool loop
+  if (preflight.summary) {
+    onEvent({ type: "thinking", content: preflight.summary });
+  }
+
+  // ── 5. Build rich system prompt with full context embedded ──────────────────
   let workingWorkbook: WorkbookSpec | null = workingWorkbookInit;
   let versionCommitted = false;
 
-  // ── 3. Build rich system prompt with full context embedded ─────────────────
   const visionFileCount = visionFiles.length;
   const promptCtx: DatasetAgentPromptContext = {
     chartName: chart.name,
@@ -279,7 +418,6 @@ export async function runDatasetAgentChat(params: {
     workbook: workingWorkbook,
     ctx: {
       ...ctx,
-      // Augment uploads flag to reflect vision files too
       hasUploads: ctx.hasUploads || visionFileCount > 0,
     },
   };
@@ -287,7 +425,7 @@ export async function runDatasetAgentChat(params: {
   const systemPrompt = buildDatasetAgentSystemPrompt(promptCtx);
   const tools = buildDatasetAgentTools();
 
-  // ── 4. Resolve signed URLs for vision files and inject a vision pre-turn ──
+  // ── 6. Resolve signed URLs for vision files and inject vision pre-turn ──────
   type KimiImageContent = { type: "image_url"; image_url: { url: string } };
   type KimiTextContent = { type: "text"; text: string };
 
@@ -328,314 +466,371 @@ export async function runDatasetAgentChat(params: {
     }
   }
 
+  // Trim history to last 10 messages and dedupe consecutive user duplicates
+  const trimmedHistory = history
+    .slice(-10)
+    .filter((m, idx, arr) => {
+      if (m.role !== "user") return true;
+      const prev = arr[idx - 1];
+      return !prev || prev.role !== "user" || prev.content !== m.content;
+    });
+
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     ...visionPreTurn,
-    ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ...trimmedHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: userMessage },
   ];
 
   let totalTokens = 0;
   let assistantContent = "";
 
-  // ── 5. Agentic loop ────────────────────────────────────────────────────────
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const { result: response } = await createKimiCompletion({
-      messages,
-      tools,
-      tool_choice: "auto",
-      max_tokens: 16384,
-      thinking: { type: "enabled" },
-    } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
-      thinking?: { type: "enabled" | "disabled" };
-    });
+  const startMs = Date.now();
 
-    const choice = response.choices[0];
-    totalTokens += response.usage?.total_tokens ?? 0;
-    const msg = choice?.message;
-    if (!msg) break;
+  logger.info({
+    chartId,
+    buildIntentDetected,
+    visionFileCount,
+    textFileCount: totalFileCount - visionFileCount,
+    contextFileCount: totalFileCount,
+    historyMessages: trimmedHistory.length,
+  }, "Dataset agent starting");
 
-    const reasoning = extractReasoning(msg);
-    if (reasoning?.trim()) {
-      onEvent({ type: "thinking", content: reasoning.slice(0, 2000) });
-    }
+  // ── 7. Agentic loop (with timeout) ─────────────────────────────────────────
+  const agentLoop = async () => {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const { result: response } = await createKimiCompletion({
+        messages,
+        tools,
+        tool_choice: "auto",
+        max_tokens: 16384,
+        thinking: { type: "enabled" },
+      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+        thinking?: { type: "enabled" | "disabled" };
+      });
 
-    if (msg.content?.trim()) {
-      assistantContent += msg.content;
-      onEvent({ type: "token", content: msg.content });
-    }
+      const choice = response.choices[0];
+      totalTokens += response.usage?.total_tokens ?? 0;
+      const msg = choice?.message;
+      if (!msg) break;
 
-    const toolCalls = msg.tool_calls;
-    if (!toolCalls?.length) break;
-
-    messages.push(buildAssistantToolCallMessage(msg));
-
-    for (const tc of toolCalls) {
-      const fn = (tc as { function: { name: string; arguments: string } }).function;
-      const name = fn.name;
-
-      // ── read_sheet_state ──────────────────────────────────────────────────
-      if (name === "read_sheet_state") {
-        onEvent({ type: "tool_start", tool: "read_sheet_state", message: "Reading current sheet schema…" });
-        let result: string;
-        if (!workingWorkbook) {
-          result = JSON.stringify({
-            status: "empty",
-            message: "No workbook exists yet. Use apply_sheet_patch with action='add_sheet' to create the first sheet.",
-          });
-        } else {
-          const validation = validateWorkbook(workingWorkbook);
-          result = JSON.stringify({
-            workbookName: workingWorkbook.name,
-            sheetCount: workingWorkbook.sheets.length,
-            sheets: workingWorkbook.sheets.map((s) => ({
-              name: s.name,
-              columnCount: s.columns.length,
-              rowCount: s.sampleRows?.length ?? 0,
-              columns: s.columns.map((c) => ({ header: c.header, type: c.type, validation: c.validation })),
-            })),
-            validationSummary: validation,
-          });
-        }
-        onEvent({
-          type: "tool_done",
-          tool: "read_sheet_state",
-          message: workingWorkbook ? `Loaded ${workingWorkbook.sheets.length} sheet(s)` : "No workbook yet",
-          ok: true,
-        });
-        messages.push({ role: "tool", tool_call_id: tc.id, content: result });
-        continue;
+      const reasoning = extractReasoning(msg);
+      if (reasoning?.trim()) {
+        onEvent({ type: "thinking", content: reasoning.slice(0, 2000) });
       }
 
-      // ── read_full_context ─────────────────────────────────────────────────
-      if (name === "read_full_context") {
-        onEvent({ type: "tool_start", tool: "read_full_context", message: "Loading full research context…" });
-        const visionNote =
-          visionFileCount > 0
-            ? `\n\nNOTE: ${visionFileCount} image/scanned context file(s) were already injected directly into this conversation as vision images above — you have already reviewed them.`
-            : "";
-        const contextResult = JSON.stringify({
-          ok: true,
-          hasPreThesis: ctx.hasPreThesis,
-          hasVault: ctx.hasVault,
-          hasUploads: ctx.hasUploads || visionFileCount > 0,
-          hasMethodology: ctx.hasMethodology,
-          vaultCount: ctx.vaultCount,
-          visionFilesAlreadyLoaded: visionFileCount,
-          fullContext: (ctx.fullContext || "No text context available yet.") + visionNote,
-        });
-        onEvent({ type: "tool_done", tool: "read_full_context", message: `Full context loaded (${ctx.fullContext.length} chars${visionFileCount > 0 ? ` + ${visionFileCount} vision images` : ""})`, ok: true });
-        messages.push({ role: "tool", tool_call_id: tc.id, content: contextResult });
-        continue;
+      if (msg.content?.trim()) {
+        assistantContent += msg.content;
+        onEvent({ type: "token", content: msg.content });
       }
 
-      // ── apply_sheet_patch ─────────────────────────────────────────────────
-      if (name === "apply_sheet_patch") {
-        onEvent({ type: "tool_start", tool: "apply_sheet_patch", message: "Applying sheet changes…" });
-        let toolResult: string;
-        try {
-          const args = JSON.parse(fn.arguments || "{}") as unknown;
+      const toolCalls = msg.tool_calls;
+      if (!toolCalls?.length) break;
 
+      messages.push(buildAssistantToolCallMessage(msg));
+
+      for (const tc of toolCalls) {
+        const fn = (tc as { function: { name: string; arguments: string } }).function;
+        const name = fn.name;
+
+        // ── read_sheet_state ────────────────────────────────────────────────
+        if (name === "read_sheet_state") {
+          onEvent({ type: "tool_start", tool: "read_sheet_state", message: "Reading current sheet schema…" });
+          let result: string;
           if (!workingWorkbook) {
-            const action =
-              args && typeof args === "object"
-                ? (args as Record<string, unknown>).action
-                : undefined;
-            if (action === "add_sheet") {
-              workingWorkbook = { name: chart.name, sheets: [] };
-            } else {
-              throw new Error(
-                "No workbook exists yet. Use apply_sheet_patch with action='add_sheet' to create the initial sheet.",
+            result = JSON.stringify({
+              status: "empty",
+              message: "No workbook exists yet. Use apply_sheet_patch with action='add_sheet' to create the first sheet.",
+            });
+          } else {
+            const validation = validateWorkbook(workingWorkbook);
+            result = JSON.stringify({
+              workbookName: workingWorkbook.name,
+              sheetCount: workingWorkbook.sheets.length,
+              sheets: workingWorkbook.sheets.map((s) => ({
+                name: s.name,
+                columnCount: s.columns.length,
+                rowCount: s.sampleRows?.length ?? 0,
+                columns: s.columns.map((c) => ({ header: c.header, type: c.type, validation: c.validation })),
+              })),
+              validationSummary: validation,
+            });
+          }
+          onEvent({
+            type: "tool_done",
+            tool: "read_sheet_state",
+            message: workingWorkbook ? `Loaded ${workingWorkbook.sheets.length} sheet(s)` : "No workbook yet",
+            ok: true,
+          });
+          messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+          continue;
+        }
+
+        // ── read_full_context ───────────────────────────────────────────────
+        if (name === "read_full_context") {
+          onEvent({ type: "tool_start", tool: "read_full_context", message: "Loading full research context…" });
+          const visionNote =
+            visionFileCount > 0
+              ? `\n\nNOTE: ${visionFileCount} image/scanned context file(s) were already injected directly into this conversation as vision images above — you have already reviewed them.`
+              : "";
+          const contextResult = JSON.stringify({
+            ok: true,
+            hasPreThesis: ctx.hasPreThesis,
+            hasVault: ctx.hasVault,
+            hasUploads: ctx.hasUploads || visionFileCount > 0,
+            hasMethodology: ctx.hasMethodology,
+            vaultCount: ctx.vaultCount,
+            visionFilesAlreadyLoaded: visionFileCount,
+            fullContext: (ctx.fullContext || "No text context available yet.") + visionNote,
+          });
+          onEvent({ type: "tool_done", tool: "read_full_context", message: `Full context loaded (${ctx.fullContext.length} chars${visionFileCount > 0 ? ` + ${visionFileCount} vision images` : ""})`, ok: true });
+          messages.push({ role: "tool", tool_call_id: tc.id, content: contextResult });
+          continue;
+        }
+
+        // ── apply_sheet_patch ───────────────────────────────────────────────
+        if (name === "apply_sheet_patch") {
+          onEvent({ type: "tool_start", tool: "apply_sheet_patch", message: "Applying sheet changes…" });
+          let toolResult: string;
+          try {
+            const args = JSON.parse(fn.arguments || "{}") as unknown;
+
+            if (!workingWorkbook) {
+              const action =
+                args && typeof args === "object"
+                  ? (args as Record<string, unknown>).action
+                  : undefined;
+              if (action === "add_sheet") {
+                workingWorkbook = { name: chart.name, sheets: [] };
+              } else {
+                throw new Error(
+                  "No workbook exists yet. Use apply_sheet_patch with action='add_sheet' to create the initial sheet.",
+                );
+              }
+            }
+
+            const { workbook: updated, summary } = applySheetPatch(workingWorkbook, args);
+            workingWorkbook = updated;
+
+            onEvent({ type: "sheet_updated", workbook: updated, summary });
+            toolResult = JSON.stringify({ ok: true, summary, state: workbookSummary(updated) });
+            onEvent({ type: "tool_done", tool: "apply_sheet_patch", message: summary, ok: true });
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : "Patch failed";
+            toolResult = JSON.stringify({ ok: false, error: errMsg });
+            onEvent({ type: "tool_done", tool: "apply_sheet_patch", message: errMsg, ok: false });
+          }
+          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          continue;
+        }
+
+        // ── generate_sample_rows ────────────────────────────────────────────
+        if (name === "generate_sample_rows") {
+          onEvent({ type: "tool_start", tool: "generate_sample_rows", message: "Generating sample data…" });
+          let toolResult: string;
+          try {
+            if (!workingWorkbook || workingWorkbook.sheets.length === 0) {
+              throw new Error("No workbook sheets exist yet. Create a sheet first with apply_sheet_patch.");
+            }
+            const args = JSON.parse(fn.arguments || "{}") as {
+              sheetIndex?: number;
+              count?: number;
+              studyNotes?: string;
+            };
+            const sheetIdx = Math.min(args.sheetIndex ?? 0, workingWorkbook.sheets.length - 1);
+            const rowCount = Math.min(Math.max(args.count ?? 40, 10), 80);
+            const studyNotes = args.studyNotes ?? ctx.domain ?? "";
+
+            const generatedRows = generateRealisticRows(workingWorkbook.sheets[sheetIdx], rowCount, studyNotes);
+
+            const { workbook: updated, summary } = applySheetPatch(workingWorkbook, {
+              action: "add_rows",
+              sheetIndex: sheetIdx,
+              rows: generatedRows,
+            });
+            workingWorkbook = updated;
+
+            onEvent({ type: "sheet_updated", workbook: updated, summary });
+            toolResult = JSON.stringify({
+              ok: true,
+              rowsGenerated: generatedRows.length,
+              sheetName: workingWorkbook.sheets[sheetIdx]?.name,
+              summary,
+            });
+            onEvent({ type: "tool_done", tool: "generate_sample_rows", message: `Generated ${generatedRows.length} sample rows`, ok: true });
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : "Row generation failed";
+            toolResult = JSON.stringify({ ok: false, error: errMsg });
+            onEvent({ type: "tool_done", tool: "generate_sample_rows", message: errMsg, ok: false });
+          }
+          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          continue;
+        }
+
+        // ── add_formula_column ──────────────────────────────────────────────
+        if (name === "add_formula_column") {
+          onEvent({ type: "tool_start", tool: "add_formula_column", message: "Adding formula column…" });
+          let toolResult: string;
+          try {
+            if (!workingWorkbook || workingWorkbook.sheets.length === 0) {
+              throw new Error("No workbook sheets exist yet. Create a sheet first.");
+            }
+            const args = JSON.parse(fn.arguments || "{}") as {
+              sheetIndex?: number;
+              header: string;
+              formula: string;
+              afterHeader?: string;
+              sampleValue?: number;
+            };
+            if (!args.header?.trim()) throw new Error("header is required for add_formula_column");
+            if (!args.formula?.trim()) throw new Error("formula is required for add_formula_column");
+
+            const sheetIdx = Math.min(args.sheetIndex ?? 0, workingWorkbook.sheets.length - 1);
+
+            const newCol = {
+              header: args.header.trim(),
+              type: "number" as const,
+              validation: { formula: args.formula.trim() },
+            };
+
+            const { workbook: updated, summary } = applySheetPatch(workingWorkbook, {
+              action: "add_columns",
+              sheetIndex: sheetIdx,
+              columns: [newCol],
+              afterHeader: args.afterHeader,
+            });
+            workingWorkbook = updated;
+
+            onEvent({ type: "sheet_updated", workbook: updated, summary });
+            toolResult = JSON.stringify({ ok: true, summary, column: newCol.header, formula: args.formula });
+            onEvent({ type: "tool_done", tool: "add_formula_column", message: `Added formula column: ${args.header}`, ok: true });
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : "add_formula_column failed";
+            toolResult = JSON.stringify({ ok: false, error: errMsg });
+            onEvent({ type: "tool_done", tool: "add_formula_column", message: errMsg, ok: false });
+          }
+          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          continue;
+        }
+
+        // ── validate_sheet ──────────────────────────────────────────────────
+        if (name === "validate_sheet") {
+          onEvent({ type: "tool_start", tool: "validate_sheet", message: "Validating workbook structure…" });
+          if (!workingWorkbook) {
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({ ok: false, valid: false, issues: [{ message: "No workbook yet" }] }),
+            });
+            onEvent({ type: "tool_done", tool: "validate_sheet", message: "No workbook", ok: false });
+            continue;
+          }
+          const validation = validateWorkbook(workingWorkbook);
+          messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ ok: true, ...validation }) });
+          onEvent({
+            type: "tool_done",
+            tool: "validate_sheet",
+            message: validation.valid
+              ? `Valid — ${validation.columnCount} columns, ${validation.rowCount} rows, ${validation.sheetCount} sheet(s)`
+              : `${validation.issues.length} issue(s) found`,
+            ok: validation.valid,
+          });
+
+          // Auto-commit: if build intent detected and workbook is valid and not yet committed
+          if (buildIntentDetected && validation.valid && workingWorkbook && !versionCommitted) {
+            onEvent({ type: "tool_start", tool: "commit_version", message: "Auto-saving version (build intent)…" });
+            try {
+              const committed = await commitVersion(
+                workspaceId,
+                chartId,
+                userId,
+                workingWorkbook,
+                "Built master chart from uploaded context",
+                onEvent,
               );
+              versionCommitted = true;
+              const autoCommitResult = JSON.stringify({ ok: true, version: committed.version, autoCommitted: true });
+              messages.push({ role: "tool", tool_call_id: `${tc.id}-autocommit`, content: autoCommitResult });
+              onEvent({ type: "tool_done", tool: "commit_version", message: `v${committed.version} saved`, ok: true });
+              logger.info({ chartId, version: committed.version }, "Auto-committed after validate (build intent)");
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : "Auto-commit failed";
+              logger.warn({ err, chartId }, "Auto-commit after validate failed");
+              onEvent({ type: "tool_done", tool: "commit_version", message: errMsg, ok: false });
             }
           }
-
-          const { workbook: updated, summary } = applySheetPatch(workingWorkbook, args);
-          workingWorkbook = updated;
-
-          onEvent({ type: "sheet_updated", workbook: updated, summary });
-          toolResult = JSON.stringify({ ok: true, summary, state: workbookSummary(updated) });
-          onEvent({ type: "tool_done", tool: "apply_sheet_patch", message: summary, ok: true });
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : "Patch failed";
-          toolResult = JSON.stringify({ ok: false, error: errMsg });
-          onEvent({ type: "tool_done", tool: "apply_sheet_patch", message: errMsg, ok: false });
-        }
-        messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
-        continue;
-      }
-
-      // ── generate_sample_rows ──────────────────────────────────────────────
-      if (name === "generate_sample_rows") {
-        onEvent({ type: "tool_start", tool: "generate_sample_rows", message: "Generating sample data…" });
-        let toolResult: string;
-        try {
-          if (!workingWorkbook || workingWorkbook.sheets.length === 0) {
-            throw new Error("No workbook sheets exist yet. Create a sheet first with apply_sheet_patch.");
-          }
-          const args = JSON.parse(fn.arguments || "{}") as {
-            sheetIndex?: number;
-            count?: number;
-            studyNotes?: string;
-          };
-          const sheetIdx = Math.min(args.sheetIndex ?? 0, workingWorkbook.sheets.length - 1);
-          const rowCount = Math.min(Math.max(args.count ?? 40, 10), 80);
-          const studyNotes = args.studyNotes ?? ctx.domain ?? "";
-
-          const generatedRows = generateRealisticRows(workingWorkbook.sheets[sheetIdx], rowCount, studyNotes);
-
-          const { workbook: updated, summary } = applySheetPatch(workingWorkbook, {
-            action: "add_rows",
-            sheetIndex: sheetIdx,
-            rows: generatedRows,
-          });
-          workingWorkbook = updated;
-
-          onEvent({ type: "sheet_updated", workbook: updated, summary });
-          toolResult = JSON.stringify({
-            ok: true,
-            rowsGenerated: generatedRows.length,
-            sheetName: workingWorkbook.sheets[sheetIdx]?.name,
-            summary,
-          });
-          onEvent({ type: "tool_done", tool: "generate_sample_rows", message: `Generated ${generatedRows.length} sample rows`, ok: true });
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : "Row generation failed";
-          toolResult = JSON.stringify({ ok: false, error: errMsg });
-          onEvent({ type: "tool_done", tool: "generate_sample_rows", message: errMsg, ok: false });
-        }
-        messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
-        continue;
-      }
-
-      // ── add_formula_column ────────────────────────────────────────────────
-      if (name === "add_formula_column") {
-        onEvent({ type: "tool_start", tool: "add_formula_column", message: "Adding formula column…" });
-        let toolResult: string;
-        try {
-          if (!workingWorkbook || workingWorkbook.sheets.length === 0) {
-            throw new Error("No workbook sheets exist yet. Create a sheet first.");
-          }
-          const args = JSON.parse(fn.arguments || "{}") as {
-            sheetIndex?: number;
-            header: string;
-            formula: string;
-            afterHeader?: string;
-            sampleValue?: number;
-          };
-          if (!args.header?.trim()) throw new Error("header is required for add_formula_column");
-          if (!args.formula?.trim()) throw new Error("formula is required for add_formula_column");
-
-          const sheetIdx = Math.min(args.sheetIndex ?? 0, workingWorkbook.sheets.length - 1);
-
-          const newCol = {
-            header: args.header.trim(),
-            type: "number" as const,
-            validation: { formula: args.formula.trim() },
-          };
-
-          const { workbook: updated, summary } = applySheetPatch(workingWorkbook, {
-            action: "add_columns",
-            sheetIndex: sheetIdx,
-            columns: [newCol],
-            afterHeader: args.afterHeader,
-          });
-          workingWorkbook = updated;
-
-          onEvent({ type: "sheet_updated", workbook: updated, summary });
-          toolResult = JSON.stringify({ ok: true, summary, column: newCol.header, formula: args.formula });
-          onEvent({ type: "tool_done", tool: "add_formula_column", message: `Added formula column: ${args.header}`, ok: true });
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : "add_formula_column failed";
-          toolResult = JSON.stringify({ ok: false, error: errMsg });
-          onEvent({ type: "tool_done", tool: "add_formula_column", message: errMsg, ok: false });
-        }
-        messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
-        continue;
-      }
-
-      // ── validate_sheet ────────────────────────────────────────────────────
-      if (name === "validate_sheet") {
-        onEvent({ type: "tool_start", tool: "validate_sheet", message: "Validating workbook structure…" });
-        if (!workingWorkbook) {
-          messages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify({ ok: false, valid: false, issues: [{ message: "No workbook yet" }] }),
-          });
-          onEvent({ type: "tool_done", tool: "validate_sheet", message: "No workbook", ok: false });
           continue;
         }
-        const validation = validateWorkbook(workingWorkbook);
-        messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ ok: true, ...validation }) });
-        onEvent({
-          type: "tool_done",
-          tool: "validate_sheet",
-          message: validation.valid
-            ? `Valid — ${validation.columnCount} columns, ${validation.rowCount} rows, ${validation.sheetCount} sheet(s)`
-            : `${validation.issues.length} issue(s) found`,
-          ok: validation.valid,
+
+        // ── commit_version ──────────────────────────────────────────────────
+        if (name === "commit_version") {
+          if (versionCommitted) {
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({ ok: false, error: "Version already committed in this session. Make more changes first." }),
+            });
+            onEvent({ type: "tool_done", tool: "commit_version", message: "Already committed", ok: false });
+            continue;
+          }
+          if (!workingWorkbook) {
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: JSON.stringify({ ok: false, error: "No workbook to commit. Build the schema first." }),
+            });
+            onEvent({ type: "tool_done", tool: "commit_version", message: "No workbook", ok: false });
+            continue;
+          }
+
+          onEvent({ type: "tool_start", tool: "commit_version", message: "Saving new version…" });
+          let toolResult: string;
+          try {
+            const args = JSON.parse(fn.arguments || "{}") as { summary?: string };
+            const validation = validateWorkbook(workingWorkbook);
+            if (!validation.valid) {
+              throw new Error(`Workbook has validation issues: ${validation.issues.map((i) => i.message).join("; ")}`);
+            }
+            const committed = await commitVersion(
+              workspaceId,
+              chartId,
+              userId,
+              workingWorkbook,
+              args.summary ?? "Agent update",
+              onEvent,
+            );
+            versionCommitted = true;
+            toolResult = JSON.stringify({ ok: true, version: committed.version, vaultResourceId: committed.vaultResourceId });
+            onEvent({ type: "tool_done", tool: "commit_version", message: `Version ${committed.version} saved`, ok: true });
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : "Commit failed";
+            toolResult = JSON.stringify({ ok: false, error: errMsg });
+            onEvent({ type: "tool_done", tool: "commit_version", message: errMsg, ok: false });
+          }
+          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          continue;
+        }
+
+        // ── unknown tool ────────────────────────────────────────────────────
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({ ok: false, error: `Unknown tool: ${name}` }),
         });
-        continue;
       }
-
-      // ── commit_version ────────────────────────────────────────────────────
-      if (name === "commit_version") {
-        if (versionCommitted) {
-          messages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify({ ok: false, error: "Version already committed in this session. Make more changes first." }),
-          });
-          onEvent({ type: "tool_done", tool: "commit_version", message: "Already committed", ok: false });
-          continue;
-        }
-        if (!workingWorkbook) {
-          messages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify({ ok: false, error: "No workbook to commit. Build the schema first." }),
-          });
-          onEvent({ type: "tool_done", tool: "commit_version", message: "No workbook", ok: false });
-          continue;
-        }
-
-        onEvent({ type: "tool_start", tool: "commit_version", message: "Saving new version…" });
-        let toolResult: string;
-        try {
-          const args = JSON.parse(fn.arguments || "{}") as { summary?: string };
-          const validation = validateWorkbook(workingWorkbook);
-          if (!validation.valid) {
-            throw new Error(`Workbook has validation issues: ${validation.issues.map((i) => i.message).join("; ")}`);
-          }
-          const committed = await commitVersion(
-            workspaceId,
-            chartId,
-            userId,
-            workingWorkbook,
-            args.summary ?? "Agent update",
-            onEvent,
-          );
-          versionCommitted = true;
-          toolResult = JSON.stringify({ ok: true, version: committed.version, vaultResourceId: committed.vaultResourceId });
-          onEvent({ type: "tool_done", tool: "commit_version", message: `Version ${committed.version} saved`, ok: true });
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : "Commit failed";
-          toolResult = JSON.stringify({ ok: false, error: errMsg });
-          onEvent({ type: "tool_done", tool: "commit_version", message: errMsg, ok: false });
-        }
-        messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
-        continue;
-      }
-
-      // ── unknown tool ──────────────────────────────────────────────────────
-      messages.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: JSON.stringify({ ok: false, error: `Unknown tool: ${name}` }),
-      });
     }
-  }
+  };
+
+  await withTimeout(agentLoop(), AGENT_TIMEOUT_MS, "Dataset agent");
+
+  logger.info({
+    chartId,
+    roundsApprox: Math.ceil((Date.now() - startMs) / 1000),
+    totalTokens,
+    versionCommitted,
+    durationMs: Date.now() - startMs,
+    buildIntentDetected,
+  }, "Dataset agent completed");
 
   onEvent({ type: "done", totalTokens, content: assistantContent });
   return { assistantContent, totalTokens };

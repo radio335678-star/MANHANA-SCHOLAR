@@ -26,7 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChartContextFile } from "@/lib/masterChartTypes";
 
-const MAX_CONTEXT_FILES = 20;
+const MAX_CONTEXT_FILES = 3;
 
 const SUGGESTED_PROMPTS = [
   "80 patients: age, sex, group A/B, pre/post outcome scores",
@@ -40,6 +40,7 @@ const SUGGESTED_PROMPTS = [
 ];
 
 const THINKING_STEPS = [
+  "Checking if I can complete this with your current files…",
   "Reading your context files…",
   "Analysing document structure…",
   "Thinking through schema design…",
@@ -315,7 +316,7 @@ export function MasterChartAiAssistant({
                 ))}
               </div>
               <p className="text-muted-foreground text-center px-2 text-[11px] leading-relaxed">
-                AI reads every uploaded file before building. Scanned images and PDFs are read visually — no OCR needed.
+                Attach up to <strong>3 files</strong> per batch (PDF, image, DOCX). AI checks feasibility first — if it can build from your files, it proceeds automatically. Build the chart, then add the next batch.
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {SUGGESTED_PROMPTS.map((p) => (
@@ -338,6 +339,8 @@ export function MasterChartAiAssistant({
           {messages.map((m) => {
             const isError = m.role === "assistant" && m.content.startsWith("__error__");
             const displayContent = isError ? m.content.slice("__error__".length) : m.content;
+            // Hide empty assistant bubbles (placeholders not yet populated)
+            if (m.role === "assistant" && !displayContent.trim() && !busy && !streaming) return null;
             return (
               <div
                 key={m.id}
@@ -480,7 +483,7 @@ export function MasterChartAiAssistant({
                     ? "text-muted-foreground/40 cursor-not-allowed"
                     : "text-muted-foreground hover:text-primary hover:bg-primary/10",
                 )}
-                title={slotsLeft <= 0 ? "Maximum 20 files" : "Attach files (PDF, image, DOCX, Excel)"}
+                title={slotsLeft <= 0 ? "Maximum 3 files — remove one to add another" : "Attach files (PDF, image, DOCX, Excel) — max 3 per batch"}
               >
                 {uploadingContext ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />

@@ -31,6 +31,7 @@ export type DatasetChatStreamEvent =
   | { type: "tool_done"; tool: string; message: string; ok: boolean }
   | { type: "sheet_updated"; workbook: WorkbookStateEvent; summary: string }
   | { type: "version_committed"; version: number; vaultResourceId?: number; summary: string }
+  | { type: "ping" }
   | { type: "done"; totalTokens: number; content: string }
   | { type: "error"; message: string };
 
@@ -40,6 +41,7 @@ export function useDatasetChatStream() {
   const [thinking, setThinking] = useState("");
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [liveWorkbook, setLiveWorkbook] = useState<WorkbookStateEvent | null>(null);
+  const [lastPingAt, setLastPingAt] = useState<number | null>(null);
 
   const sendMessage = useCallback(
     async (
@@ -117,6 +119,9 @@ export function useDatasetChatStream() {
                 case "sheet_updated":
                   setLiveWorkbook(event.workbook);
                   break;
+                case "ping":
+                  setLastPingAt(Date.now());
+                  break;
                 case "done":
                 case "error":
                   // handled by caller
@@ -143,12 +148,14 @@ export function useDatasetChatStream() {
     thinking,
     toolStatus,
     liveWorkbook,
+    lastPingAt,
     sendMessage,
     resetStream: () => {
       setStreamContent("");
       setThinking("");
       setToolStatus(null);
       setLiveWorkbook(null);
+      setLastPingAt(null);
     },
   };
 }

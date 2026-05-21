@@ -207,9 +207,5 @@ export function buildDatasetAgentTools(): OpenAI.Chat.Completions.ChatCompletion
     APPLY_PATCH_TOOL,
     VALIDATE_SHEET_TOOL,
     COMMIT_VERSION_TOOL,
-    {
-      type: "builtin_function",
-      function: { name: "$rethink" },
-    } as unknown as OpenAI.Chat.Completions.ChatCompletionTool,
   ];
 }

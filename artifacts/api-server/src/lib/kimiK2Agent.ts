@@ -25,13 +25,7 @@ export type PreThesisAgentEvent =
 const MAX_TOOL_ROUNDS = 8;
 
 function buildTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
-    APPLY_PATCH_TOOL,
-    {
-      type: "builtin_function",
-      function: { name: "$rethink" },
-    } as unknown as OpenAI.Chat.Completions.ChatCompletionTool,
-  ];
+  const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [APPLY_PATCH_TOOL];
   if (isMoonshotWebSearchEnabled()) {
     tools.push({
       type: "builtin_function",
@@ -112,30 +106,6 @@ export async function runPreThesisAgentChat(params: {
           ? tc.function
           : (tc as { function: { name: string; arguments: string } }).function;
       const name = fn.name;
-
-      if (name === "$rethink") {
-        params.onEvent({
-          type: "thinking",
-          content: `Plan: ${fn.arguments || "{}"}`.slice(0, 2000),
-        });
-        params.onEvent({
-          type: "tool_start",
-          tool: "rethink",
-          message: "Planning next steps…",
-        });
-        params.onEvent({
-          type: "tool_done",
-          tool: "rethink",
-          message: "Plan ready",
-          ok: true,
-        });
-        messages.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify({ ok: true, status: "rethink_acknowledged" }),
-        });
-        continue;
-      }
 
       if (name === "$web_search") {
         params.onEvent({

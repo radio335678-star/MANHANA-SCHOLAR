@@ -272,18 +272,6 @@ export async function runDatasetAgentChat(params: {
       const fn = (tc as { function: { name: string; arguments: string } }).function;
       const name = fn.name;
 
-      // ── $rethink ──
-      if (name === "$rethink") {
-        onEvent({ type: "tool_start", tool: "rethink", message: "Thinking through the plan…" });
-        onEvent({ type: "tool_done", tool: "rethink", message: "Plan ready", ok: true });
-        messages.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: JSON.stringify({ ok: true }),
-        });
-        continue;
-      }
-
       // ── read_sheet_state ──
       if (name === "read_sheet_state") {
         onEvent({ type: "tool_start", tool: "read_sheet_state", message: "Reading current sheet schema…" });

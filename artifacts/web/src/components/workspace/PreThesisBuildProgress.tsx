@@ -64,6 +64,12 @@ export function PreThesisBuildProgress({
               ? "Running deep web research and compiling your university-ready pre-thesis structure…"
               : "Pre-thesis build finished."}
         </CardDescription>
+        {building && !error && (
+          <p className="text-sm text-muted-foreground">
+            Note: Deep analysis can take 4-5 minutes. Please be patient while we prepare your
+            pre-thesis.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">

@@ -99,6 +99,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/humaniser':
+        specifier: workspace:*
+        version: link:../../lib/humaniser
       '@workspace/vault-citations':
         specifier: workspace:*
         version: link:../../lib/vault-citations
@@ -527,6 +530,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/humaniser':
+        specifier: workspace:*
+        version: link:../../lib/humaniser
       canvas-confetti:
         specifier: ^1.9.3
         version: 1.9.4
@@ -645,6 +651,8 @@ importers:
       tsx:
         specifier: 'catalog:'
         version: 4.21.0
+
+  lib/humaniser: {}
 
   lib/vault-citations: {}
 

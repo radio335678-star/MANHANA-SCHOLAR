@@ -28,6 +28,8 @@
     "adm-zip": "^0.5.16",
     "multer": "^1.4.5-lts.1",
     "openai": "^6.38.0",
+    "@napi-rs/canvas": "^0.1.70",
+    "pdfjs-dist": "^5.4.296",
     "p-limit": "^4.0.0",
     "pino": "^9.14.0",
     "pino-http": "^10.5.0",

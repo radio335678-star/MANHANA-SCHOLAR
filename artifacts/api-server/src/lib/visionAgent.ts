@@ -8,6 +8,11 @@ import {
 import { getKimiApiKey, getKimiBaseUrl } from "./kimiModels";
 import { logger } from "./logger";
 import type { VisionFileInfo } from "@workspace/db";
+import {
+  isPdfFile,
+  isPoorExtract,
+  renderPdfPagesToPng,
+} from "./pdfVisionPages";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -21,6 +26,10 @@ const MAX_INLINE_IMAGE_BYTES = 4 * 1024 * 1024; // 4 MB — larger images use ms
 
 const FILE_EXTRACT_POLL_MS = 500;
 const FILE_EXTRACT_MAX_WAIT_MS = 60_000;
+
+/** Max PDF pages sent as vision images across one batch (10 files). */
+const MAX_PDF_VISION_PAGES_TOTAL = 30;
+const MAX_PDF_PAGES_PER_FILE = 10;
 
 export const DEFAULT_VISION_PROMPT = `You are a meticulous document reader. Examine every uploaded file in full detail.
 
@@ -166,6 +175,14 @@ type UserContentPart =
   | { type: "image_url"; image_url: { url: string } }
   | { type: "video_url"; video_url: { url: string } };
 
+function pageCapPerPdf(pdfFileCount: number): number {
+  if (pdfFileCount <= 0) return MAX_PDF_PAGES_PER_FILE;
+  return Math.min(
+    MAX_PDF_PAGES_PER_FILE,
+    Math.max(1, Math.floor(MAX_PDF_VISION_PAGES_TOTAL / pdfFileCount)),
+  );
+}
+
 export async function runVisionRead({
   files,
   prompt,
@@ -175,6 +192,9 @@ export async function runVisionRead({
   prompt: string;
   onStream?: (event: KimiStreamEvent) => void;
 }): Promise<VisionRunResult> {
+  const pdfFileCount = files.filter((f) => isPdfFile(f.name, f.mimeType)).length;
+  const perPdfPageCap = pageCapPerPdf(pdfFileCount);
+
   type FileProcessResult = {
     systemMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     userParts: UserContentPart[];
@@ -226,12 +246,47 @@ export async function runVisionRead({
         };
       }
 
-      // PDF, DOCX, XLSX, etc. — Moonshot file-extract (official API; no local OCR)
+      // PDF, DOCX, XLSX, etc. — try Moonshot file-extract first
       const fileId = await uploadDocForExtract(f.buffer, f.name, f.mimeType);
       const extracted = await fetchMoonshotExtractedContent(fileId);
       await deleteMoonshotFile(fileId);
 
       const header = `=== Document: ${f.name} ===`;
+      const pdf = isPdfFile(f.name, f.mimeType);
+      const scanned = pdf && isPoorExtract(extracted);
+
+      if (scanned) {
+        // Scanned/image-only PDF: rasterize pages → Kimi vision (true "reads what it sees")
+        const pageImages = await renderPdfPagesToPng(f.buffer, f.name, perPdfPageCap);
+        if (pageImages.length === 0) {
+          throw new Error(`Could not render PDF pages for ${f.name}`);
+        }
+
+        const parts: UserContentPart[] = [];
+        for (let i = 0; i < pageImages.length; i++) {
+          const b64 = pageImages[i]!.toString("base64");
+          parts.push({
+            type: "text",
+            text: `[Scanned PDF: ${f.name} — page ${i + 1} of ${pageImages.length}]`,
+          });
+          parts.push({
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${b64}` },
+          });
+        }
+
+        logger.info(
+          { filename: f.name, ext, pages: pageImages.length, perPdfPageCap },
+          "Vision: scanned PDF sent as page images to Kimi vision",
+        );
+
+        return {
+          systemMessages: [],
+          userParts: parts,
+          fileRef: { ...empty.fileRef, kimiFileId: fileId },
+        };
+      }
+
       logger.info(
         { filename: f.name, fileId, ext, chars: extracted.length },
         "Vision: document extracted via Moonshot file-extract",

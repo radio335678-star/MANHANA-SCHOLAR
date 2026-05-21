@@ -419,7 +419,7 @@ export function VisionReaderPanel({
             <div className="space-y-0.5">
               <p className="text-sm font-medium text-foreground">Drop files here</p>
               <p className="text-xs text-muted-foreground">
-                PDF, DOCX, XLSX, images, scanned docs
+                PDF, DOCX, XLSX, images — scanned PDFs read page-by-page with Kimi vision
               </p>
               <p className="text-[11px] text-muted-foreground/70">
                 Up to {MAX_FILES} files · {MAX_FILE_SIZE_MB} MB each

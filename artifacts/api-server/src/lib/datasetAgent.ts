@@ -122,7 +122,7 @@ async function commitVersion(
   let vaultResourceId: number | undefined;
 
   if (isStorageConfigured()) {
-    await uploadBuffer(xlsx, storagePath, "artifacts");
+    await uploadBuffer(storagePath, xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     const title = `Master Chart — ${chart.name} — v${newVersion}.xlsx`;
     vaultResourceId = await saveArtifactToVault({
       workspaceId,
@@ -192,7 +192,7 @@ export async function runDatasetAgentChat(params: {
   }
 
   const [ws] = await db
-    .select({ name: workspacesTable.name, domain: workspacesTable.domain })
+    .select({ title: workspacesTable.title, domain: workspacesTable.domain })
     .from(workspacesTable)
     .where(eq(workspacesTable.id, workspaceId))
     .limit(1);
@@ -209,7 +209,7 @@ export async function runDatasetAgentChat(params: {
   );
 
   const agentCtx: DatasetAgentContext = {
-    workspaceName: ws?.name ?? "Workspace",
+    workspaceName: ws?.title ?? "Workspace",
     domain: ws?.domain ?? "Clinical Research",
     chartName: chart.name,
     chartMode: chart.mode,
@@ -331,7 +331,13 @@ export async function runDatasetAgentChat(params: {
           const args = JSON.parse(fn.arguments || "{}") as unknown;
 
           if (!workingWorkbook) {
-            throw new Error("No workbook exists yet. First use read_context_bundle to understand the study design, then use apply_sheet_patch with action='add_sheet' to create the initial sheet.");
+            const action = args && typeof args === "object" ? (args as Record<string, unknown>).action : undefined;
+            if (action === "add_sheet") {
+              // Bootstrap an empty workbook so the first add_sheet can create the initial sheet.
+              workingWorkbook = { name: chart.name, sheets: [] };
+            } else {
+              throw new Error("No workbook exists yet. First use read_context_bundle to understand the study design, then use apply_sheet_patch with action='add_sheet' to create the initial sheet.");
+            }
           }
 
           const { workbook: updated, summary } = applySheetPatch(workingWorkbook, args);

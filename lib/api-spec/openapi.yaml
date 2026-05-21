@@ -1271,6 +1271,12 @@ components:
           type: ["string", "null"]
         lockedAt:
           type: ["string", "null"]
+        humaniserIntensity:
+          type: integer
+          minimum: 0
+          maximum: 9
+          default: 4
+          description: "AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)"
         totalSections:
           type: integer
         completedSections:
@@ -1411,6 +1417,11 @@ components:
         status:
           type: string
           enum: [active, completed, archived]
+        humaniserIntensity:
+          type: integer
+          minimum: 0
+          maximum: 9
+          description: "AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)"
 
     WorkspaceProgress:
       type: object
@@ -1584,6 +1595,11 @@ components:
           enum: [academic, concise, detailed, formal]
         wordLimit:
           type: integer
+        humaniserIntensity:
+          type: integer
+          minimum: 0
+          maximum: 9
+          description: "Override workspace humaniser intensity for this generation request"
 
     GeneratedContent:
       type: object

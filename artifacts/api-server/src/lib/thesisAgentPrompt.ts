@@ -30,6 +30,7 @@ export function buildThesisSectionSystemPrompt(opts: {
   adjacentSummaries?: string;
   researchNotes?: string;
   attachmentContext?: string;
+  humaniserBlock?: string;
 }): string {
   const pageHint =
     opts.targetPages != null
@@ -49,6 +50,7 @@ export function buildThesisSectionSystemPrompt(opts: {
 
   const extras = [
     PREMIUM_THESIS_WRITER,
+    opts.humaniserBlock ?? "",
     pageHint,
     opts.adjacentSummaries
       ? `ADJACENT SECTION SUMMARIES (maintain coherence):\n${opts.adjacentSummaries}`
@@ -73,6 +75,7 @@ export function buildThesisGenerateSystemPrompt(opts: {
   targetPages?: number | null;
   adjacentSummaries?: string;
   researchNotes?: string;
+  humaniserBlock?: string;
 }): string {
   const pageHint =
     opts.targetPages != null
@@ -91,6 +94,7 @@ export function buildThesisGenerateSystemPrompt(opts: {
   return [
     base,
     PREMIUM_THESIS_WRITER,
+    opts.humaniserBlock ?? "",
     opts.sectionTitle ? `Section: ${opts.sectionTitle}` : "",
     opts.adjacentSummaries
       ? `ADJACENT SECTION SUMMARIES:\n${opts.adjacentSummaries}`

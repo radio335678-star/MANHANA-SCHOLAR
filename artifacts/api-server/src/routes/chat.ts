@@ -312,6 +312,7 @@ router.post(
         workspace: access.ws,
         section: { ...access.sec, targetPages: targetPages ?? Math.ceil(wordLimit / 250) },
         userProfile,
+        humaniserIntensityOverride: body.data.humaniserIntensity ?? null,
         onEvent: (event) => {
           res.write(`data: ${JSON.stringify(event)}\n\n`);
           if (event.type === "token") fullContent += event.content;

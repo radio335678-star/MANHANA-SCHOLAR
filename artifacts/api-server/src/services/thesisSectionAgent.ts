@@ -18,6 +18,7 @@ import {
   buildThesisGenerateSystemPrompt,
   buildThesisSectionSystemPrompt,
 } from "../lib/thesisAgentPrompt";
+import { buildHumaniserBlock, resolveHumaniserIntensity } from "../lib/humaniserPrompt";
 import { getAdjacentSectionSummaries } from "./sectionCoherence";
 import type { WorkspaceAiContext } from "../lib/workspaceContext";
 
@@ -101,7 +102,7 @@ export async function runThesisSectionAgent(params: {
   userMessage?: string;
   mode: "chat" | "generate";
   aiCtx: WorkspaceAiContext;
-  workspace: { title: string; domain?: string | null; qualification?: string | null };
+  workspace: { title: string; domain?: string | null; qualification?: string | null; humaniserIntensity?: number | null };
   section: {
     id: number;
     title: string;
@@ -115,6 +116,8 @@ export async function runThesisSectionAgent(params: {
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   attachmentContext?: string;
   skipResearch?: boolean;
+  /** Per-request humaniser intensity override (falls back to workspace setting). */
+  humaniserIntensityOverride?: number | null;
   onEvent: (event: ThesisSectionAgentEvent) => void;
 }): Promise<{ content: string; totalTokens: number }> {
   if (!hasMoonshotKey()) {
@@ -140,11 +143,15 @@ export async function runThesisSectionAgent(params: {
 
   const adjacentSummaries = await getAdjacentSectionSummaries(params.workspaceId, params.sectionId);
 
+  const humaniserIntensity = resolveHumaniserIntensity(params.workspace, params.humaniserIntensityOverride);
+  const domain = params.userProfile?.domain ?? params.workspace.domain;
+  const humaniserBlock = buildHumaniserBlock(humaniserIntensity, domain);
+
   const systemPrompt =
     params.mode === "generate"
       ? buildThesisGenerateSystemPrompt({
           qualification: params.userProfile?.qualification ?? params.workspace.qualification,
-          domain: params.userProfile?.domain ?? params.workspace.domain,
+          domain,
           toneDesc: "formal academic prose suitable for a medical thesis",
           wordHint: "",
           contextBlock: params.aiCtx.contextBlock,
@@ -153,10 +160,11 @@ export async function runThesisSectionAgent(params: {
           targetPages: params.section.targetPages,
           adjacentSummaries,
           researchNotes,
+          humaniserBlock,
         })
       : buildThesisSectionSystemPrompt({
           qualification: params.userProfile?.qualification ?? params.workspace.qualification,
-          domain: params.userProfile?.domain ?? params.workspace.domain,
+          domain,
           thesisTitle: params.workspace.title,
           sectionTitle: params.section.title,
           sectionType: params.section.type,
@@ -169,6 +177,7 @@ export async function runThesisSectionAgent(params: {
           adjacentSummaries,
           researchNotes,
           attachmentContext: params.attachmentContext,
+          humaniserBlock,
         });
 
   const tools = [APPLY_SECTION_PATCH_TOOL];

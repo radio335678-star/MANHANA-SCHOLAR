@@ -151,6 +151,12 @@ export interface Workspace {
   lastLiveVerifiedAt?: string | null;
   /** @nullable */
   lockedAt?: string | null;
+  /**
+     * AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)
+     * @minimum 0
+     * @maximum 9
+     */
+  humaniserIntensity?: number;
   totalSections: number;
   completedSections: number;
   createdAt: string;
@@ -302,6 +308,12 @@ export interface WorkspaceUpdate {
   state?: WorkspaceUpdateState;
   universityName?: string;
   status?: WorkspaceUpdateStatus;
+  /**
+   * AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)
+   * @minimum 0
+   * @maximum 9
+   */
+  humaniserIntensity?: number;
 }
 
 export interface SectionProgress {
@@ -489,6 +501,8 @@ export interface GenerateContentInput {
   prompt: string;
   tone?: GenerateContentInputTone;
   wordLimit?: number;
+  /** Override workspace humaniser intensity for this generation request */
+  humaniserIntensity?: number;
 }
 
 export interface GeneratedContent {

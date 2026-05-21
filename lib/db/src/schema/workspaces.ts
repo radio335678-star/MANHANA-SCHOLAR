@@ -39,6 +39,7 @@ export const workspacesTable = pgTable("workspaces", {
   lockedAt: timestamp("locked_at"),
   autoCompleteStatus: text("auto_complete_status").default("idle"),
   autoCompleteCurrentSection: integer("auto_complete_current_section"),
+  humaniserIntensity: integer("humaniser_intensity").notNull().default(4),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

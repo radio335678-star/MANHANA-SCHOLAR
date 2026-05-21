@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -7,12 +7,14 @@ import {
   useGetWorkspaceProgress,
   useGetVaultSummary,
   useListSections,
+  useUpdateWorkspace,
   getGetWorkspaceQueryKey,
   getGetWorkspaceProgressQueryKey,
   getGetVaultSummaryQueryKey,
   getListSectionsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { HUMANISER_LEVELS, humaniserBadgeClass, DEFAULT_HUMANISER_LEVEL } from "@workspace/humaniser";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,38 +52,6 @@ import { MasterChartPanel } from "@/components/workspace/MasterChartPanel";
 import { WorkspaceCardMenu } from "@/components/workspace/WorkspaceCardMenu";
 import { OpenEditorBanner } from "@/components/workspace/OpenEditorBanner";
 
-const HUMANISER_LEVELS = [
-  {
-    level: 0,
-    name: "Raw AI",
-    description: "Pure model output — structured, clinical. No voice shaping.",
-    example: "The study evaluated 80 participants. Results demonstrated statistical significance (p<0.05).",
-  },
-  {
-    level: 1,
-    name: "Lightly Humanised",
-    description: "Minor transitions and rhythm improvements. Subtle.",
-    example: "The study enrolled 80 participants. The results were statistically significant (p<0.05).",
-  },
-  {
-    level: 2,
-    name: "Scholar Voice",
-    description: "Natural academic voice. Good flow. Recommended for most sections.",
-    example: "Eighty participants were enrolled in this study. The observed findings achieved statistical significance at p<0.05.",
-  },
-  {
-    level: 3,
-    name: "Confident Prose",
-    description: "Confident, assertive academic voice. Ideal for Discussion and Conclusion.",
-    example: "This study enrolled 80 participants; the findings were statistically significant (p<0.05), reinforcing the study hypothesis.",
-  },
-  {
-    level: 4,
-    name: "Distinctive Scholar",
-    description: "Highly distinctive academic voice. Maximum humanisation. Use with care.",
-    example: "In the present investigation, 80 participants were recruited; notably, the results attained statistical significance (p<0.05), lending credence to the hypothesis.",
-  },
-];
 
 const LOCKED_WORKFLOW_STATES = new Set([
   "locked_in",
@@ -247,9 +217,12 @@ export default function WorkspaceDetail({ id }: { id: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [humaniserLevel, setHumaniserLevel] = useState(2);
+  const [humaniserLevel, setHumaniserLevel] = useState(DEFAULT_HUMANISER_LEVEL);
+  const [humaniserSaving, setHumaniserSaving] = useState(false);
+  const humaniserSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [exporting, setExporting] = useState(false);
   const [humaniserVisited, setHumaniserVisited] = useState(false);
+  const updateWorkspace = useUpdateWorkspace();
   const [datasetReady, setDatasetReady] = useState(false);
 
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -305,6 +278,35 @@ export default function WorkspaceDetail({ id }: { id: string }) {
   const { data: workspace, isLoading: isWsLoading } = useGetWorkspace(workspaceId, {
     query: { enabled: !!workspaceId, queryKey: getGetWorkspaceQueryKey(workspaceId) },
   });
+
+  // Sync humaniser level from server once workspace loads
+  useEffect(() => {
+    if (workspace && workspace.humaniserIntensity != null) {
+      setHumaniserLevel(workspace.humaniserIntensity);
+    }
+  }, [workspace?.humaniserIntensity]);
+
+  const handleHumaniserChange = (level: number) => {
+    setHumaniserLevel(level);
+    setHumaniserVisited(true);
+    localStorage.setItem(HUMANISER_VISITED_KEY(workspaceId), "1");
+    if (humaniserSaveTimer.current) clearTimeout(humaniserSaveTimer.current);
+    humaniserSaveTimer.current = setTimeout(() => {
+      setHumaniserSaving(true);
+      updateWorkspace.mutate(
+        { id: workspaceId, data: { humaniserIntensity: level } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetWorkspaceQueryKey(workspaceId) });
+          },
+          onError: () => {
+            toast({ title: "Could not save Humaniser level", variant: "destructive" });
+          },
+          onSettled: () => setHumaniserSaving(false),
+        },
+      );
+    }, 600);
+  };
 
   const { data: progress } = useGetWorkspaceProgress(workspaceId, {
     query: { enabled: !!workspaceId, queryKey: getGetWorkspaceProgressQueryKey(workspaceId) },
@@ -740,32 +742,29 @@ export default function WorkspaceDetail({ id }: { id: string }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-serif font-semibold text-lg">
-                        Level {humaniserLevel} — {HUMANISER_LEVELS[humaniserLevel].name}
+                        Level {humaniserLevel} — {HUMANISER_LEVELS[humaniserLevel]!.name}
                       </h3>
-                      <p className="text-sm text-muted-foreground mt-0.5">{HUMANISER_LEVELS[humaniserLevel].description}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{HUMANISER_LEVELS[humaniserLevel]!.description}</p>
                     </div>
                     <div className={cn(
                       "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold",
-                      humaniserLevel <= 1 ? "bg-secondary text-muted-foreground" :
-                      humaniserLevel === 2 ? "bg-primary/10 text-primary" :
-                      humaniserLevel === 3 ? "bg-amber-100 text-amber-700" :
-                      "bg-purple-100 text-purple-700",
+                      humaniserBadgeClass(humaniserLevel),
                     )}>
-                      L{humaniserLevel}
+                      {humaniserSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : `L${humaniserLevel}`}
                     </div>
                   </div>
                   <Slider
                     value={[humaniserLevel]}
-                    onValueChange={([v]) => setHumaniserLevel(v)}
+                    onValueChange={([v]) => handleHumaniserChange(v!)}
                     min={0}
-                    max={4}
+                    max={9}
                     step={1}
                     className="w-full"
                   />
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex justify-between text-xs text-muted-foreground overflow-hidden">
                     {HUMANISER_LEVELS.map((l) => (
-                      <span key={l.level} className={cn("font-medium", humaniserLevel === l.level && "text-primary")}>
-                        {l.name.split(" ")[0]}
+                      <span key={l.level} className={cn("font-medium truncate text-center", humaniserLevel === l.level && "text-primary")}>
+                        {l.shortName}
                       </span>
                     ))}
                   </div>
@@ -776,29 +775,29 @@ export default function WorkspaceDetail({ id }: { id: string }) {
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Example output at this level</p>
                   <div className="p-4 bg-secondary/30 rounded-lg border border-border text-sm italic text-foreground leading-relaxed">
-                    "{HUMANISER_LEVELS[humaniserLevel].example}"
+                    "{HUMANISER_LEVELS[humaniserLevel]!.example}"
                   </div>
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {HUMANISER_LEVELS.map((l) => (
                   <button
                     key={l.level}
-                    onClick={() => setHumaniserLevel(l.level)}
+                    onClick={() => handleHumaniserChange(l.level)}
                     className={cn(
-                      "p-4 rounded-xl border-2 text-left transition-all",
+                      "p-3 rounded-xl border-2 text-left transition-all",
                       humaniserLevel === l.level
                         ? "border-primary bg-primary/5"
                         : "border-border bg-card hover:border-primary/30",
                     )}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-mono text-muted-foreground">Level {l.level}</span>
-                      {humaniserLevel === l.level && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-mono text-muted-foreground">L{l.level}</span>
+                      {humaniserLevel === l.level && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
                     </div>
-                    <p className="font-serif font-semibold text-sm text-foreground">{l.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{l.description}</p>
+                    <p className="font-serif font-semibold text-xs text-foreground leading-snug">{l.name}</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-2">{l.description}</p>
                   </button>
                 ))}
               </div>

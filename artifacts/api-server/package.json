@@ -14,6 +14,7 @@
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/humaniser": "workspace:*",
     "@workspace/vault-citations": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

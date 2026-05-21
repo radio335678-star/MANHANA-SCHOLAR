@@ -159,6 +159,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "researchNotes": zod.string().nullish(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
+  "humaniserIntensity": zod.number().min(0).max(9).optional(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -215,6 +216,7 @@ export const ListWorkspacesResponseItem = zod.object({
   "researchNotes": zod.string().nullish(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
+  "humaniserIntensity": zod.number().min(0).max(9).optional(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -271,6 +273,7 @@ export const GetWorkspaceResponse = zod.object({
   "researchNotes": zod.string().nullish(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
+  "humaniserIntensity": zod.number().min(0).max(9).optional(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -299,7 +302,8 @@ export const UpdateWorkspaceBody = zod.object({
   "collegeName": zod.string().optional(),
   "state": zod.enum(['Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal']).optional(),
   "universityName": zod.string().optional(),
-  "status": zod.enum(['active', 'completed', 'archived']).optional()
+  "status": zod.enum(['active', 'completed', 'archived']).optional(),
+  "humaniserIntensity": zod.number().min(0).max(9).optional()
 })
 
 export const UpdateWorkspaceResponse = zod.object({
@@ -323,6 +327,7 @@ export const UpdateWorkspaceResponse = zod.object({
   "researchNotes": zod.string().nullish(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
+  "humaniserIntensity": zod.number().min(0).max(9).optional(),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -680,7 +685,8 @@ export const GenerateSectionContentParams = zod.object({
 export const GenerateSectionContentBody = zod.object({
   "prompt": zod.string(),
   "tone": zod.enum(['academic', 'concise', 'detailed', 'formal']).optional(),
-  "wordLimit": zod.number().optional()
+  "wordLimit": zod.number().optional(),
+  "humaniserIntensity": zod.number().min(0).max(9).optional()
 })
 
 export const GenerateSectionContentResponse = zod.object({

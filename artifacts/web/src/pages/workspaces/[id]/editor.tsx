@@ -638,7 +638,6 @@ export default function WorkspaceEditor({ id }: { id: string }) {
               vaultResourceCount > 0
                 ? `Write a comprehensive, scholarly ${activeSection.title} section for this thesis. Support claims only with Research Vault sources using inline keys [V1], [V2], etc. End with a "References (Research Vault)" block listing every cited key.`
                 : `Write a comprehensive ${activeSection.title} section. The Research Vault is empty — do not invent citations; note where literature from the vault is needed.`,
-            tone: "academic",
             wordLimit: 1500,
           }),
         }

@@ -103,7 +103,7 @@ const FEATURES = [
   {
     icon: <Brain className="w-5 h-5" />,
     title: "Humaniser Engine",
-    description: "5-level scholarly voice control. AI writes with natural academic rhythm — not robotic, not detectable, not flagged.",
+    description: "10-level scholarly voice control. AI writes with natural academic rhythm — not robotic, not detectable, not flagged.",
   },
   {
     icon: <FileText className="w-5 h-5" />,
@@ -243,7 +243,7 @@ export default function Landing() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex items-center justify-center gap-6 text-sm text-muted-foreground pt-4 flex-wrap"
           >
-            {["NMC Compliant", "Vancouver Citations", "5 Medical Systems", "AI Humaniser"].map((badge) => (
+            {["NMC Compliant", "Vancouver Citations", "5 Medical Systems", "AI Humaniser (10 Levels)"].map((badge) => (
               <span key={badge} className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                 {badge}
@@ -465,7 +465,7 @@ export default function Landing() {
                 name: "PG Scholar",
                 price: billingAnnual ? "1,199" : "1,499",
                 description: "For MD/MS/DNB candidates",
-                features: ["3 workspaces", "200 page limit", "Unlimited AI chats", "Clean DOCX export", "Research Vault (2GB)", "Humaniser levels 0-3", "Pre-Thesis builder"],
+                features: ["3 workspaces", "200 page limit", "Unlimited AI chats", "Clean DOCX export", "Research Vault (2GB)", "Humaniser levels 0–6", "Pre-Thesis builder"],
                 cta: "Start PG Plan",
                 highlighted: true,
                 badge: "Most Popular",
@@ -474,7 +474,7 @@ export default function Landing() {
                 name: "PhD Researcher",
                 price: billingAnnual ? "2,399" : "2,999",
                 description: "For PhD candidates & researchers",
-                features: ["10 workspaces", "700 page limit", "Unlimited everything", "DOCX + PDF export", "Research Vault (10GB)", "All Humaniser levels", "Supervisor collaboration", "2 plagiarism reports/mo"],
+                features: ["10 workspaces", "700 page limit", "Unlimited everything", "DOCX + PDF export", "Research Vault (10GB)", "All Humaniser levels (0–9)", "Supervisor collaboration", "2 plagiarism reports/mo"],
                 cta: "Start PhD Plan",
                 highlighted: false,
               },

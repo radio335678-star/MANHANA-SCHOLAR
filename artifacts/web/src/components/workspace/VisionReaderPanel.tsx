@@ -99,7 +99,7 @@ function formatBytes(bytes: number): string {
 
 // ── User guide note ───────────────────────────────────────────────────────────
 
-function VisionReaderUserNote() {
+function VisionReaderUserNote({ workspaceDomain }: { workspaceDomain: string }) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -152,7 +152,10 @@ function VisionReaderUserNote() {
               <strong>Save to Vault</strong> for later
             </li>
             <li>Photos (JPG, PNG) go straight to vision — ideal for single scanned sheets</li>
-            <li>Reports are written in <strong>English only</strong> (no Chinese/CJK symbols in output)</li>
+            <li>
+              Reports use <strong>{workspaceDomain}</strong> terminology (English + domain-appropriate
+              transliterated terms; no Chinese/CJK)
+            </li>
           </ul>
         </div>
       )}
@@ -401,9 +404,11 @@ export type VisionReaderSendCallback = (content: string) => void;
 
 export function VisionReaderPanel({
   workspaceId,
+  workspaceDomain = "Allopathy",
   onSendToDataset,
 }: {
   workspaceId: number;
+  workspaceDomain?: string;
   /** Called when user clicks "Send to Dataset AI" — receives the full output text */
   onSendToDataset?: VisionReaderSendCallback;
 }) {
@@ -637,7 +642,7 @@ export function VisionReaderPanel({
           </div>
         </div>
 
-        <VisionReaderUserNote />
+        <VisionReaderUserNote workspaceDomain={workspaceDomain} />
 
         {/* File list */}
         {files.length > 0 && (
@@ -878,7 +883,8 @@ export function VisionReaderPanel({
                     appears here in a scrollable chat view.
                   </p>
                   <p className="text-[10px] text-muted-foreground/80">
-                    Reports are in English (Latin script) only — no Chinese/CJK symbols.
+                    Output follows your thesis domain ({workspaceDomain}) — English with
+                    domain-appropriate terms.
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-1.5 max-w-xs">

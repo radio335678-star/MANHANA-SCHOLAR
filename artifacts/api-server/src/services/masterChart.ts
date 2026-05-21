@@ -264,6 +264,92 @@ export async function uploadChartContextFile(
   return row!;
 }
 
+const MAX_CONTEXT_TEXT_CHARS = 120_000;
+
+/** Free a slot when chart already has 3 context files (drops oldest). */
+async function ensureChartContextSlot(chartId: number): Promise<void> {
+  const existing = await db
+    .select({ id: masterChartContextFilesTable.id })
+    .from(masterChartContextFilesTable)
+    .where(eq(masterChartContextFilesTable.chartId, chartId))
+    .orderBy(masterChartContextFilesTable.createdAt);
+
+  if (existing.length >= 3) {
+    const oldest = existing[0];
+    if (oldest) {
+      await db
+        .delete(masterChartContextFilesTable)
+        .where(eq(masterChartContextFilesTable.id, oldest.id));
+      logger.info({ chartId, removedId: oldest.id }, "Removed oldest context file for vision export");
+    }
+  }
+}
+
+/**
+ * Store large Vision Reader (or other) text as a chart context file — bypasses chat 12k limit.
+ */
+export async function uploadChartContextFromText(
+  workspaceId: number,
+  chartId: number,
+  userId: number,
+  opts: { text: string; filename?: string },
+) {
+  await assertMasterChartAllowed(workspaceId);
+
+  const [chart] = await db
+    .select()
+    .from(masterChartsTable)
+    .where(and(eq(masterChartsTable.id, chartId), eq(masterChartsTable.workspaceId, workspaceId)))
+    .limit(1);
+  if (!chart) throw new Error("Chart not found");
+
+  let text = opts.text.trim();
+  if (!text) throw new Error("Empty text");
+
+  await ensureChartContextSlot(chartId);
+
+  const originalLength = text.length;
+  if (text.length > MAX_CONTEXT_TEXT_CHARS) {
+    text =
+      text.slice(0, MAX_CONTEXT_TEXT_CHARS) +
+      `\n\n[Truncated: ${originalLength - MAX_CONTEXT_TEXT_CHARS} characters omitted — storage limit.]`;
+  }
+
+  const filename = (() => {
+    const base =
+      opts.filename?.trim() ||
+      `vision-reader-${new Date().toISOString().slice(0, 10)}.txt`;
+    return base.endsWith(".txt") ? base : `${base}.txt`;
+  })();
+
+  let vaultResourceId: number | undefined;
+  if (isStorageConfigured()) {
+    vaultResourceId = await saveArtifactToVault({
+      workspaceId,
+      userId,
+      title: `Dataset context — ${filename}`,
+      filename,
+      buffer: Buffer.from(text, "utf-8"),
+      mimeType: "text/plain",
+      activityDescription: `Vision Reader export attached to chart: "${filename}"`,
+    });
+  }
+
+  const [row] = await db
+    .insert(masterChartContextFilesTable)
+    .values({
+      chartId,
+      filename,
+      mimeType: "text/plain",
+      extractedText: text,
+      storagePath: null,
+      vaultResourceId: vaultResourceId ?? null,
+    })
+    .returning();
+
+  return row!;
+}
+
 export async function uploadChartContextFiles(
   workspaceId: number,
   chartId: number,

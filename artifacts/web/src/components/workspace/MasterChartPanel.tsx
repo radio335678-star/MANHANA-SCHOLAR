@@ -36,6 +36,7 @@ import {
   Eye,
 } from "lucide-react";
 import { VisionReaderPanel } from "@/components/workspace/VisionReaderPanel";
+import { buildDatasetPromptFromVision } from "@/lib/visionDomain";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { MasterChartAiAssistant } from "@/components/workspace/MasterChartAiAssistant";
@@ -92,12 +93,17 @@ function buildAssistantReply(spec: ReturnType<typeof parseSheetSpec>, version: n
   return `Updated master chart v${version} with ${spec.columns?.length ?? 0} columns (${cols}).${rows > 0 ? ` ${rows} rows included.` : ""} Saved to vault when storage is configured.`;
 }
 
+/** Keep under API chat/stream zod max (12000) including JSON overhead */
+const DATASET_CHAT_SAFE_MAX = 10_000;
+
 export function MasterChartPanel({
   workspaceId,
+  workspaceDomain = "Allopathy",
   workflowState,
   showGuide = false,
 }: {
   workspaceId: number;
+  workspaceDomain?: string;
   workflowState: string;
   showGuide?: boolean;
 }) {
@@ -653,11 +659,58 @@ export function MasterChartPanel({
     });
   }, [toast]);
 
-  const handleVisionSendToDataset = useCallback((text: string) => {
-    setPanelTab("dataset");
-    setTimeout(() => void handleGenerate(text), 80);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  const handleVisionSendToDataset = useCallback(
+    async (text: string) => {
+      if (!selectedId || busy || streaming) return;
+      setPanelTab("dataset");
+
+      const trimmed = text.trim();
+      if (!trimmed) {
+        toast({ variant: "destructive", title: "Nothing to send", description: "Run Vision Reader first." });
+        return;
+      }
+
+      try {
+        let prompt: string;
+
+        if (trimmed.length > DATASET_CHAT_SAFE_MAX) {
+          const res = await authFetch(`/master-charts/${selectedId}/context/text`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: trimmed,
+              filename: `vision-reader-${Date.now()}.txt`,
+            }),
+          });
+          if (!res.ok) {
+            throw new Error(await safeErrorMessage(res));
+          }
+          const json = (await res.json()) as {
+            file: { filename: string; charCount: number };
+          };
+          await loadDetail(selectedId);
+          prompt = buildDatasetPromptFromVision(workspaceDomain, true);
+          toast({
+            title: "Vision report attached",
+            description: `Saved as ${json.file.filename} (${json.file.charCount.toLocaleString()} chars). Dataset AI is building your chart…`,
+          });
+        } else {
+          prompt = buildDatasetPromptFromVision(workspaceDomain, false) + trimmed;
+        }
+
+        await handleGenerate(prompt);
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Send to Dataset AI failed",
+          description: e instanceof Error ? e.message : undefined,
+        });
+      }
+    },
+    // handleGenerate is stable enough for this flow; omit to avoid stale closure churn
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedId, busy, streaming, workspaceDomain, toast],
+  );
 
   const handleDeleteVersion = async (version: number) => {
     if (!selectedId) return;
@@ -910,7 +963,8 @@ export function MasterChartPanel({
       {panelTab === "vision" ? (
         <VisionReaderPanel
           workspaceId={workspaceId}
-          onSendToDataset={selectedId ? handleVisionSendToDataset : undefined}
+          workspaceDomain={workspaceDomain}
+          onSendToDataset={selectedId ? (t) => void handleVisionSendToDataset(t) : undefined}
         />
       ) : (
       <>

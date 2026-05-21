@@ -711,6 +711,7 @@ export default function WorkspaceDetail({ id }: { id: string }) {
             >
               <MasterChartPanel
                 workspaceId={workspaceId}
+                workspaceDomain={workspace.domain}
                 workflowState={workflowState}
                 showGuide={showDatasetGuide}
               />

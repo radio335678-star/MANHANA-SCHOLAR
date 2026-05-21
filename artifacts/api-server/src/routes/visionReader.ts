@@ -86,6 +86,13 @@ router.post(
       ? req.body.prompt.trim()
       : DEFAULT_VISION_PROMPT;
 
+    const [wsRow] = await db
+      .select({ domain: workspacesTable.domain })
+      .from(workspacesTable)
+      .where(eq(workspacesTable.id, workspaceId))
+      .limit(1);
+    const workspaceDomain = wsRow?.domain ?? "Allopathy";
+
     // ── Start SSE stream ──────────────────────────────────────────────────────
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -135,7 +142,12 @@ router.post(
         }
       };
 
-      const result = await runVisionRead({ files, prompt: userPrompt, onStream });
+      const result = await runVisionRead({
+        files,
+        prompt: userPrompt,
+        domain: workspaceDomain,
+        onStream,
+      });
       outputText = result.text || outputText || thinkingText;
       thinkingText = result.thinkingText || thinkingText;
       tokensUsed = result.tokensUsed;

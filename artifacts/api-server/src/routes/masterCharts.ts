@@ -11,6 +11,7 @@ import {
   getChartDownloadUrl,
   uploadChartContextFile,
   uploadChartContextFiles,
+  uploadChartContextFromText,
   deleteMasterChartVersion,
   deleteChartContextFile,
 } from "../services/masterChart";
@@ -294,6 +295,49 @@ router.post(
   },
 );
 
+// POST .../context/text — attach large Vision Reader output (bypasses 12k chat limit)
+router.post(
+  "/workspaces/:workspaceId/master-charts/:chartId/context/text",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
+
+    const workspaceId = parseInt(String(req.params.workspaceId), 10);
+    const chartId = parseInt(String(req.params.chartId), 10);
+
+    const parsed = ContextTextBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+
+    if (!(await verifyChartOwnership(workspaceId, chartId, dbUser.id))) {
+      res.status(404).json({ error: "Chart not found" });
+      return;
+    }
+
+    try {
+      const row = await uploadChartContextFromText(workspaceId, chartId, dbUser.id, {
+        text: parsed.data.text,
+        filename: parsed.data.filename,
+      });
+      res.status(201).json({
+        file: {
+          id: row.id,
+          filename: row.filename,
+          extractedPreview: row.extractedText?.slice(0, 300) ?? "",
+          charCount: row.extractedText?.length ?? 0,
+        },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Context text upload failed";
+      const status = msg.includes("not found") ? 404 : 500;
+      res.status(status).json({ error: msg });
+    }
+  },
+);
+
 router.delete(
   "/workspaces/:workspaceId/master-charts/:chartId/context/:fileId",
   requireAuth,
@@ -383,6 +427,11 @@ router.post(
 
 const ChatSendBody = z.object({
   content: z.string().min(1).max(12000),
+});
+
+const ContextTextBody = z.object({
+  text: z.string().min(1).max(200_000),
+  filename: z.string().max(200).optional(),
 });
 
 async function verifyChartOwnership(

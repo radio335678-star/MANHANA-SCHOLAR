@@ -42,7 +42,13 @@ For each file describe:
 6. Handwritten or scanned text: transcribe every legible character
 7. Nothing should be omitted — if something is unclear state it but still describe it
 
-Write a single cohesive report covering all files in order. Do NOT summarise; transcribe and describe completely.`;
+Write a single cohesive report covering all files in order. Do NOT summarise; transcribe and describe completely.
+
+OUTPUT LANGUAGE (mandatory): Write the entire report in English using Latin script only. Do NOT output Chinese characters (汉字), Japanese kanja, Korean hanja, or any CJK symbols — even when they appear in source documents. Transliterate personal names and describe non-English text in English.`;
+
+/** Appended to every vision read (including custom prompts). */
+const VISION_LANGUAGE_RULE =
+  "\n\nReminder: Output must use English (Latin script) only — no Chinese/CJK characters or symbols in your response.";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -329,16 +335,18 @@ export async function runVisionRead({
     throw new Error("No files could be processed. Check that file types are supported.");
   }
 
+  const effectivePrompt = `${prompt.trim()}${VISION_LANGUAGE_RULE}`;
+
   const hasVisualParts = userParts.length > 0;
   const userMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam = hasVisualParts
     ? {
         role: "user",
         content: [
           ...userParts,
-          { type: "text", text: prompt },
+          { type: "text", text: effectivePrompt },
         ] as OpenAI.Chat.Completions.ChatCompletionContentPart[],
       }
-    : { role: "user", content: prompt };
+    : { role: "user", content: effectivePrompt };
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     ...systemMessages,

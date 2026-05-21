@@ -152,6 +152,7 @@ function VisionReaderUserNote() {
               <strong>Save to Vault</strong> for later
             </li>
             <li>Photos (JPG, PNG) go straight to vision — ideal for single scanned sheets</li>
+            <li>Reports are written in <strong>English only</strong> (no Chinese/CJK symbols in output)</li>
           </ul>
         </div>
       )}
@@ -201,12 +202,111 @@ function ThinkingAnimation({
   );
 }
 
-// ── Output display ────────────────────────────────────────────────────────────
+// ── Formatted output (chat-style, scroll-contained) ───────────────────────────
 
-function OutputDisplay({ text }: { text: string }) {
+function VisionFormattedOutput({
+  text,
+  streaming,
+}: {
+  text: string;
+  streaming?: boolean;
+}) {
+  const lines = text.split("\n");
+
   return (
-    <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed font-mono">
-      {text}
+    <div className="space-y-1.5 text-[13px] leading-[1.65] text-foreground/95 break-words">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("## ")) {
+          return (
+            <h2
+              key={i}
+              className="text-sm font-semibold text-violet-900 dark:text-violet-200 mt-5 mb-1.5 pb-1 border-b border-violet-200/50 first:mt-0"
+            >
+              {trimmed.slice(3)}
+            </h2>
+          );
+        }
+        if (trimmed.startsWith("### ")) {
+          return (
+            <h3 key={i} className="text-[13px] font-semibold text-foreground mt-3.5">
+              {trimmed.slice(4)}
+            </h3>
+          );
+        }
+        if (trimmed.startsWith("#### ")) {
+          return (
+            <h4 key={i} className="text-xs font-semibold text-muted-foreground mt-2.5 uppercase tracking-wide">
+              {trimmed.slice(5)}
+            </h4>
+          );
+        }
+        if (/^[-*•]\s+/.test(trimmed)) {
+          return (
+            <div key={i} className="flex gap-2 pl-1 text-foreground/90">
+              <span className="text-violet-500 shrink-0 mt-0.5">•</span>
+              <span className="flex-1 min-w-0">{trimmed.replace(/^[-*•]\s+/, "")}</span>
+            </div>
+          );
+        }
+        if (trimmed === "---" || trimmed === "***") {
+          return <hr key={i} className="border-border/50 my-3" />;
+        }
+        if (trimmed === "") {
+          return <div key={i} className="h-1.5" aria-hidden />;
+        }
+        const boldMatch = trimmed.match(/^\*\*(.+)\*\*$/);
+        if (boldMatch) {
+          return (
+            <p key={i} className="font-semibold text-foreground">
+              {boldMatch[1]}
+            </p>
+          );
+        }
+        return (
+          <p key={i} className="text-foreground/90">
+            {line}
+          </p>
+        );
+      })}
+      {streaming && (
+        <span
+          className="inline-block w-0.5 h-4 bg-violet-500 ml-0.5 animate-pulse align-text-bottom"
+          aria-hidden
+        />
+      )}
+    </div>
+  );
+}
+
+function AssistantOutputBubble({
+  text,
+  streaming,
+  fileCount,
+}: {
+  text: string;
+  streaming?: boolean;
+  fileCount?: number;
+}) {
+  return (
+    <div className="flex flex-col gap-2 w-full max-w-full">
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-0.5">
+        <div className="w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-950/50 flex items-center justify-center shrink-0">
+          <Sparkles className="w-3 h-3 text-violet-600" />
+        </div>
+        <span className="font-medium text-foreground/80">{AI_BRAND}</span>
+        {fileCount ? (
+          <span className="text-muted-foreground/70">· {fileCount} file{fileCount !== 1 ? "s" : ""}</span>
+        ) : null}
+        {streaming && (
+          <Badge className="text-[9px] h-4 px-1.5 bg-violet-500/15 text-violet-700 border-violet-300/40 ml-1">
+            Reading…
+          </Badge>
+        )}
+      </div>
+      <div className="mr-auto w-full rounded-2xl rounded-tl-md border border-border/50 bg-card shadow-sm px-4 py-3.5 sm:px-5 sm:py-4">
+        <VisionFormattedOutput text={text} streaming={streaming} />
+      </div>
     </div>
   );
 }
@@ -311,7 +411,7 @@ export function VisionReaderPanel({
   const { toast } = useToast();
   const dropRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const outputEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const {
     streaming,
@@ -347,10 +447,15 @@ export function VisionReaderPanel({
     return () => clearInterval(timer);
   }, [streaming]);
 
-  // Scroll output area to bottom as content streams in
+  // Keep scroll inside the output panel (not the whole page)
   useEffect(() => {
-    outputEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [streamContent, thinkingContent]);
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (streaming || nearBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [displayText, streamContent, streaming, streamingThinking]);
 
   // ── Drag & drop ─────────────────────────────────────────────────────────────
 
@@ -490,9 +595,9 @@ export function VisionReaderPanel({
   const activeText = displayText || streamContent || thinkingContent;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 h-full min-h-[520px]">
+    <div className="flex flex-col lg:flex-row gap-4 h-[min(72dvh,720px)] min-h-[520px] max-h-[780px] overflow-hidden">
       {/* ── LEFT: Upload zone ─────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 lg:w-[280px] shrink-0">
+      <div className="flex flex-col gap-3 lg:w-[280px] shrink-0 lg:max-h-full lg:overflow-y-auto lg:overscroll-contain pr-0.5">
         {/* Drop zone */}
         <div
           ref={dropRef}
@@ -642,11 +747,33 @@ export function VisionReaderPanel({
         </div>
       </div>
 
-      {/* ── RIGHT: Output ────────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 min-h-0 gap-3">
+      {/* ── RIGHT: Chat-style output panel ───────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border/60 bg-card/40 shadow-sm">
+        {/* Panel header */}
+        <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border/50 bg-card/80 backdrop-blur-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            {streaming ? (
+              <Loader2 className="w-4 h-4 text-violet-600 animate-spin shrink-0" />
+            ) : (
+              <Eye className="w-4 h-4 text-violet-600 shrink-0" />
+            )}
+            <span className="text-sm font-semibold truncate">Vision Reader</span>
+            {streaming && (
+              <Badge className="text-[10px] h-4 px-1.5 bg-violet-500/15 text-violet-700 border-violet-300/40 shrink-0">
+                Live
+              </Badge>
+            )}
+          </div>
+          {hasOutput && !streaming && (
+            <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+              {activeText.length.toLocaleString()} chars
+            </span>
+          )}
+        </div>
+
         {/* Action bar */}
         {hasOutput && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="shrink-0 flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border/40 bg-muted/20">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -709,33 +836,49 @@ export function VisionReaderPanel({
           </div>
         )}
 
-        {/* Output scroll area */}
-        <ScrollArea className="flex-1 rounded-xl border border-border/60 bg-muted/10 min-h-[300px]">
-          <div className="p-4 space-y-3">
-            {streaming && (
+        {/* Scrollable messages — stays inside panel; extra bottom padding clears workspace footer */}
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain scroll-smooth"
+        >
+          <div className="px-4 py-4 pb-24 space-y-4 min-h-full">
+            {streaming && !hasOutput && (
               <ThinkingAnimation
                 thinkingContent={streamingThinking}
                 stepText={READING_STEPS[stepIdx] ?? READING_STEPS[0]}
               />
             )}
 
+            {streaming && hasOutput && (
+              <div className="sticky top-0 z-10 -mx-1 px-1 pb-2 bg-gradient-to-b from-card/95 via-card/90 to-transparent">
+                <ThinkingAnimation
+                  thinkingContent={streamingThinking}
+                  stepText={READING_STEPS[stepIdx] ?? READING_STEPS[0]}
+                />
+              </div>
+            )}
+
             {hasOutput ? (
-              <OutputDisplay text={activeText} />
+              <AssistantOutputBubble
+                text={activeText}
+                streaming={streaming}
+                fileCount={files.length}
+              />
             ) : !streaming ? (
-              <div className="flex flex-col items-center justify-center h-[260px] text-center space-y-4 select-none">
+              <div className="flex flex-col items-center justify-center min-h-[280px] text-center space-y-4 select-none py-8">
                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-100 to-violet-50 flex items-center justify-center border border-violet-200/60">
                   <Eye className="w-7 h-7 text-violet-500" />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-w-sm">
                   <p className="text-sm font-medium text-foreground">
                     {AI_BRAND} Vision Reader
                   </p>
-                  <p className="text-xs text-muted-foreground max-w-sm">
-                    Upload files on the left, then click Read Files with {AI_BRAND}. Scanned PDFs are
-                    read page-by-page with vision; digital PDFs use full-document parsing.
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Upload files on the left, then click Read Files with {AI_BRAND}. Your report
+                    appears here in a scrollable chat view.
                   </p>
-                  <p className="text-[10px] text-muted-foreground/80 max-w-sm">
-                    See &ldquo;How Vision Reader works&rdquo; for scanned PDF limits and Dataset AI sync.
+                  <p className="text-[10px] text-muted-foreground/80">
+                    Reports are in English (Latin script) only — no Chinese/CJK symbols.
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-1.5 max-w-xs">
@@ -747,14 +890,12 @@ export function VisionReaderPanel({
                 </div>
               </div>
             ) : null}
-
-            <div ref={outputEndRef} />
           </div>
-        </ScrollArea>
+        </div>
 
-        {/* Token / model badge after completion */}
+        {/* Footer status */}
         {!streaming && lastSessionId && (
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground px-0.5">
+          <div className="shrink-0 flex items-center gap-2 text-[10px] text-muted-foreground px-4 py-2 border-t border-border/40 bg-muted/10">
             <Brain className="w-3 h-3" />
             <span>Session #{lastSessionId}</span>
             <span className="text-border">·</span>

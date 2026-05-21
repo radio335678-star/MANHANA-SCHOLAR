@@ -124,6 +124,9 @@ export function MasterChartPanel({
   const [deletingVersion, setDeletingVersion] = useState<number | null>(null);
   const [lastPrompt, setLastPrompt] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<"dataset" | "vision">("dataset");
+  const [visionTabHighlight, setVisionTabHighlight] = useState(false);
+  const panelTabsRef = useRef<HTMLDivElement>(null);
+  const visionHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Streaming agent hook
   const {
@@ -768,6 +771,7 @@ export function MasterChartPanel({
       lastPrompt={lastPrompt}
       onSend={(text) => void handleGenerate(text)}
       onRetry={lastPrompt ? () => void handleGenerate(lastPrompt) : undefined}
+      onAttachClick={handleDatasetAttachClick}
       onContextUpload={async (files) => {
         try {
           await handleContextUpload(files);
@@ -833,6 +837,31 @@ export function MasterChartPanel({
     </>
   ) : null;
 
+  useEffect(() => {
+    return () => {
+      if (visionHighlightTimerRef.current) clearTimeout(visionHighlightTimerRef.current);
+    };
+  }, []);
+
+  const handleDatasetAttachClick = useCallback(() => {
+    toast({
+      title: "Tip: use quaasx-vision-reader",
+      description:
+        "For PDFs and scanned forms, quaasx-vision-reader reads up to 10 files in full detail. " +
+        "Sync to Dataset AI automatically (toggle) or with Send to Dataset AI. " +
+        "You can still attach up to 3 files here for quick context.",
+      duration: 9000,
+    });
+
+    setVisionTabHighlight(true);
+    if (visionHighlightTimerRef.current) clearTimeout(visionHighlightTimerRef.current);
+    visionHighlightTimerRef.current = setTimeout(() => setVisionTabHighlight(false), 8000);
+
+    requestAnimationFrame(() => {
+      panelTabsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [toast]);
+
   // ── Vision Reader sync callback ────────────────────────────────────────────
   const handleVisionSendToDataset = useCallback((text: string) => {
     setPanelTab("dataset");
@@ -844,8 +873,12 @@ export function MasterChartPanel({
   const innerContent = (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* ── Panel sub-tabs ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border/40 w-fit">
+      <div
+        ref={panelTabsRef}
+        className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border/40 w-fit scroll-mt-24"
+      >
         <button
+          type="button"
           onClick={() => setPanelTab("dataset")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
@@ -858,16 +891,20 @@ export function MasterChartPanel({
           Dataset Builder
         </button>
         <button
+          type="button"
+          id="quaasx-vision-reader-tab"
           onClick={() => setPanelTab("vision")}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
             panelTab === "vision"
               ? "bg-background text-foreground shadow-sm border border-border/60"
               : "text-muted-foreground hover:text-foreground",
+            visionTabHighlight &&
+              "ring-2 ring-blue-500 ring-offset-2 border-blue-400/80 bg-blue-50 text-blue-900 shadow-[0_0_18px_rgba(59,130,246,0.45)] animate-pulse",
           )}
         >
-          <Eye className="w-3.5 h-3.5" />
-          Vision Reader
+          <Eye className={cn("w-3.5 h-3.5", visionTabHighlight && "text-blue-600")} />
+          quaasx-vision-reader
         </button>
       </div>
 

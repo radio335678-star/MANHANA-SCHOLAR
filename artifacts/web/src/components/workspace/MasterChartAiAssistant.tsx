@@ -148,6 +148,8 @@ type MasterChartAiAssistantProps = {
   onSend: (text: string) => void;
   onRetry?: () => void;
   onContextUpload: (files: File[]) => Promise<void>;
+  /** Fired when user clicks Attach (before the file picker opens). */
+  onAttachClick?: () => void;
   onContextDelete?: (fileId: number) => Promise<void>;
   onExpand?: () => void;
   onNewChat?: () => void;
@@ -168,6 +170,7 @@ export function MasterChartAiAssistant({
   onSend,
   onRetry,
   onContextUpload,
+  onAttachClick,
   onContextDelete,
   onExpand,
   onNewChat,
@@ -490,7 +493,10 @@ export function MasterChartAiAssistant({
               <button
                 type="button"
                 disabled={busy || streaming || uploadingContext || slotsLeft <= 0}
-                onClick={() => fileRef.current?.click()}
+                onClick={() => {
+                  if (slotsLeft > 0) onAttachClick?.();
+                  fileRef.current?.click();
+                }}
                 className={cn(
                   "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg transition-colors",
                   slotsLeft <= 0

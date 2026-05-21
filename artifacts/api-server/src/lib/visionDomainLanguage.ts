@@ -53,3 +53,22 @@ export function buildDatasetPromptFromVision(domain: ThesisMedicalDomain, usedCo
     `Call read_full_context if needed, then build all required sheets and commit_version.`
   );
 }
+
+/** Excel column naming and sample-data style for Dataset AI — all 5 thesis domains. */
+export function buildDatasetDomainExcelGuidance(domain: ThesisMedicalDomain): string {
+  const d = (domain || "Allopathy").trim();
+
+  switch (d) {
+    case "Ayurveda":
+      return `DOMAIN (Ayurveda): Use Ayurvedic master-chart conventions — English plus standard Sanskrit transliteration in headers where appropriate (e.g. prakriti, vikriti, roga, chikitsa, dravya). Prefer PG thesis terminology over generic Western-only labels when the study is Ayurvedic. SI units where measurements apply.`;
+    case "Siddha":
+      return `DOMAIN (Siddha): Use Siddha medicine master-chart conventions — English with Siddha/Tamil transliterated headers (e.g. gunam, thathu, udal, noi, maruthuvam) matching Siddha PG thesis practice.`;
+    case "Unani":
+      return `DOMAIN (Unani): Use Unani (Tibb) conventions — English with standard Unani transliterations (mizaj, akhlat, arkan, amraz) in column names where the protocol uses them.`;
+    case "Homeopathy":
+      return `DOMAIN (Homeopathy): Use homeopathic master-chart conventions — remedy (Latin nomenclature), potency (e.g. 30C, 200C), repertory rubrics, LM/Q potencies as relevant. Avoid allopathic-only lab columns unless the study includes them.`;
+    case "Allopathy":
+    default:
+      return `DOMAIN (Allopathy): Use standard biomedical/clinical master-chart conventions — SI units, ICD-style diagnoses, vitals and lab columns (e.g. Age_yr, BMI_kgm2, HbA1c_%, SBP_mmHg) as appropriate to the protocol.`;
+  }
+}

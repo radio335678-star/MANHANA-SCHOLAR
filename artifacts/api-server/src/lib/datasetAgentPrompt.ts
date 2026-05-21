@@ -1,6 +1,7 @@
 import type OpenAI from "openai";
 import type { WorkbookSpec } from "./sheetGeneration";
 import type { DatasetAgentContextBundle } from "./datasetContext";
+import { buildDatasetDomainExcelGuidance } from "./visionDomainLanguage";
 
 export type DatasetAgentPromptContext = {
   chartName: string;
@@ -116,6 +117,8 @@ Domain: ${ctx.domain}
 Chart: ${chartName} (mode: ${chartMode})
 Context available: ${vaultLine} | ${uploadsLine} | ${methodsLine}
 
+${buildDatasetDomainExcelGuidance(ctx.domain)}
+
 ${studySetupBlock}
 
 ${vaultMetaBlock}
@@ -141,7 +144,7 @@ TOOL USAGE PROTOCOL (always follow this order):
 ═══════════════════════════════════════
 EXCEL BEST PRACTICES:
 ═══════════════════════════════════════
-- Column headers: unique, concise (≤20 chars), standard clinical nomenclature (e.g. "Age_yr", "BMI_kgm2", "HbA1c_%", "SBP_mmHg").
+- Column headers: unique, concise (≤20 chars), aligned with the workspace DOMAIN above (not generic Western-only labels when the thesis is Ayurveda/Siddha/Unani/Homeopathy).
 - Types: "number" for all measurements, "date" for dates, "string" for categorical/free-text/IDs.
 - Validation: always add options for categoricals (Sex: ["M","F","Other"], Group: ["Case","Control","Placebo"]).
 - Sheet names: ≤31 chars, Excel-safe (no :/?*[]\\ characters).

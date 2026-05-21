@@ -37,6 +37,57 @@ import { getKimiApiKey } from "../lib/kimiModels";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
+const ALLOWED_VAULT_EXTENSIONS = new Set([
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xlsx",
+  ".xls",
+  ".csv",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".bmp",
+  ".tiff",
+  ".tif",
+]);
+
+function inferVaultTypeFromFile(
+  filename: string,
+  mimeType: string,
+): "paper" | "note" | "reference" | "image" | "link" {
+  const lower = filename.toLowerCase();
+  if (mimeType.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(lower)) {
+    return "image";
+  }
+  if (
+    mimeType.includes("spreadsheet") ||
+    mimeType.includes("excel") ||
+    lower.endsWith(".xlsx") ||
+    lower.endsWith(".xls") ||
+    lower.endsWith(".csv")
+  ) {
+    return "reference";
+  }
+  if (
+    mimeType.includes("pdf") ||
+    mimeType.includes("word") ||
+    lower.endsWith(".pdf") ||
+    lower.endsWith(".doc") ||
+    lower.endsWith(".docx")
+  ) {
+    return "paper";
+  }
+  return "note";
+}
+
+function isAllowedVaultFile(filename: string): boolean {
+  const ext = filename.includes(".") ? filename.slice(filename.lastIndexOf(".")).toLowerCase() : "";
+  return ALLOWED_VAULT_EXTENSIONS.has(ext);
+}
+
 const router: IRouter = Router();
 
 function vaultToResponse(r: typeof vaultResourcesTable.$inferSelect) {
@@ -142,6 +193,14 @@ router.post(
       return;
     }
 
+    if (!isAllowedVaultFile(file.originalname)) {
+      res.status(400).json({
+        error:
+          "Unsupported file type. Allowed: PDF, Word (DOC/DOCX), Excel (XLS/XLSX), CSV, and images (PNG, JPG, WEBP, GIF).",
+      });
+      return;
+    }
+
     if (!isStorageConfigured()) {
       if (process.env.NODE_ENV === "production") {
         res.status(503).json({ error: "Storage not configured" });
@@ -150,10 +209,10 @@ router.post(
       assertStorageConfigured();
     }
 
-    const title = (req.body.title as string) || file.originalname;
-    const type =
-      (req.body.type as "paper" | "note" | "reference" | "image" | "link") ||
-      (file.mimetype.startsWith("image/") ? "image" : "paper");
+    const title = (req.body.title as string)?.trim() || file.originalname;
+    const bodyType = req.body.type as "paper" | "note" | "reference" | "image" | "link" | undefined;
+    const type = bodyType && bodyType !== "link" ? bodyType : inferVaultTypeFromFile(file.originalname, file.mimetype);
+    const notes = (req.body.content as string)?.trim() || null;
 
     const [resource] = await db
       .insert(vaultResourcesTable)
@@ -163,6 +222,7 @@ router.post(
         title,
         processingStatus: "pending",
         mimeType: file.mimetype,
+        content: notes,
       })
       .returning();
 
@@ -196,7 +256,7 @@ router.post(
         .set({
           storagePath,
           processingStatus: "ready",
-          content: extractedContent,
+          content: extractedContent ?? notes,
           updatedAt: new Date(),
         })
         .where(eq(vaultResourcesTable.id, resource!.id))
@@ -327,6 +387,48 @@ router.get(
     }
 
     res.json(GetVaultResourceResponse.parse(vaultToResponse(resource)));
+  },
+);
+
+router.get(
+  "/workspaces/:workspaceId/vault/:resourceId/download",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
+
+    const workspaceId = parseInt(String(req.params.workspaceId), 10);
+    const resourceId = parseInt(String(req.params.resourceId), 10);
+    const ws = await verifyWorkspaceOwnership(workspaceId, dbUser.id);
+    if (!ws) {
+      res.status(404).json({ error: "Workspace not found" });
+      return;
+    }
+
+    const [resource] = await db
+      .select()
+      .from(vaultResourcesTable)
+      .where(eq(vaultResourcesTable.id, resourceId))
+      .limit(1);
+
+    if (!resource || resource.workspaceId !== workspaceId || !resource.storagePath) {
+      res.status(404).json({ error: "File not found" });
+      return;
+    }
+
+    if (!isStorageConfigured()) {
+      res.status(503).json({ error: "Storage not configured" });
+      return;
+    }
+
+    try {
+      const downloadUrl = await createSignedDownloadUrl(resource.storagePath, 3600, "vault");
+      res.json({ downloadUrl, mimeType: resource.mimeType, title: resource.title });
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : "Could not create download link",
+      });
+    }
   },
 );
 

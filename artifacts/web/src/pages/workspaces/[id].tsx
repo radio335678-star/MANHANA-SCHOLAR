@@ -368,7 +368,7 @@ export default function WorkspaceDetail({ id }: { id: string }) {
   const vaultReady = (vaultSummary?.total ?? 0) > 0;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-24">
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300 pb-3">
 
       {/* Open Editor floating banner — shows as soon as pre-thesis is locked */}
       <OpenEditorBanner

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ChevronRight, Edit3, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { mainAreaFixedCn } from "@/lib/main-area-inset";
+import { useSidebar } from "@/components/ui/sidebar";
 
 type OpenEditorBannerProps = {
   visible: boolean;
@@ -28,6 +30,8 @@ function collapseStorageKey(workspaceId: number) {
 }
 
 export function OpenEditorBanner({ visible, workspaceId, signals }: OpenEditorBannerProps) {
+  const { isMobile, state: sidebarState } = useSidebar();
+  const sidebarCollapsed = sidebarState === "collapsed";
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -53,38 +57,43 @@ export function OpenEditorBanner({ visible, workspaceId, signals }: OpenEditorBa
   return (
     <AnimatePresence>
       {visible && (
-        <motion.div
-          initial={{ opacity: 0, y: 80 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 40 }}
-          transition={{ type: "spring", stiffness: 320, damping: 28 }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl"
-        >
-          <AnimatePresence mode="wait">
-            {collapsed ? (
-              <motion.button
-                key="rail"
-                type="button"
-                initial={{ opacity: 0, scaleX: 0.6 }}
-                animate={{ opacity: 1, scaleX: 1 }}
-                exit={{ opacity: 0, scaleX: 0.6 }}
-                transition={{ duration: 0.22 }}
-                onClick={() => setCollapsedPersisted(false)}
-                className="block w-full rounded-full p-0 border-0 bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:ring-offset-2"
-                aria-label="Expand workspace status bar"
-                title="Click to show workspace status"
-              >
-                <div className="open-editor-banner-rail shadow-sm" />
-              </motion.button>
-            ) : (
-              <motion.div
-                key="panel"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.22 }}
-                className="open-editor-banner-glow relative rounded-2xl border border-emerald-500/40 bg-card/95 backdrop-blur-md shadow-2xl p-4 sm:p-5 pr-10 sm:pr-12"
-              >
+        <>
+          <motion.div
+            initial={{ opacity: 0, y: 80 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ type: "spring", stiffness: 320, damping: 28 }}
+            className={cn(
+              mainAreaFixedCn(isMobile, sidebarCollapsed, "bottom"),
+              "z-50 flex justify-center",
+              collapsed ? "max-w-none" : "max-w-2xl mx-auto",
+            )}
+          >
+            <AnimatePresence mode="wait">
+              {collapsed ? (
+                <motion.button
+                  key="rail"
+                  type="button"
+                  initial={{ opacity: 0, scaleX: 0.6 }}
+                  animate={{ opacity: 1, scaleX: 1 }}
+                  exit={{ opacity: 0, scaleX: 0.6 }}
+                  transition={{ duration: 0.22 }}
+                  onClick={() => setCollapsedPersisted(false)}
+                  className="block w-full rounded-none p-0 border-0 bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60"
+                  aria-label="Expand workspace status bar"
+                  title="Click to show workspace status"
+                >
+                  <div className="open-editor-banner-rail shadow-sm" />
+                </motion.button>
+              ) : (
+                <motion.div
+                  key="panel"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.22 }}
+                  className="open-editor-banner-glow relative w-full rounded-t-2xl rounded-b-none border border-emerald-500/40 border-b-0 bg-card/95 backdrop-blur-md shadow-2xl p-4 sm:p-5 pr-10 sm:pr-12"
+                >
                 <button
                   type="button"
                   onClick={() => setCollapsedPersisted(true)}
@@ -136,10 +145,11 @@ export function OpenEditorBanner({ visible, workspaceId, signals }: OpenEditorBa
                     </Button>
                   </Link>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </>
       )}
     </AnimatePresence>
   );

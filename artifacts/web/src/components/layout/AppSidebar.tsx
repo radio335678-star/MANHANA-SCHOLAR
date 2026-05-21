@@ -16,6 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -71,6 +72,14 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <div className="flex w-full items-center justify-center px-1 py-0.5 group-data-[collapsible=icon]:px-0">
+              <SidebarTrigger
+                className="h-8 w-8 shrink-0 border border-sidebar-border/80 bg-sidebar-accent/30 hover:bg-sidebar-accent"
+                title="Collapse sidebar"
+              />
+            </div>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
@@ -81,12 +90,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter className="border-t border-sidebar-border">
-        <p className="px-2 py-1 text-[10px] text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
-          Ctrl+B to toggle sidebar
-        </p>
-      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>

@@ -9,10 +9,20 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
-import { AppHeader } from "@/components/layout/AppHeader";
 import { SidebarRouteSync } from "@/components/layout/SidebarRouteSync";
+
+function MobileSidebarBar() {
+  const { isMobile } = useSidebar();
+  if (!isMobile) return null;
+  return (
+    <div className="flex h-9 shrink-0 items-center border-b border-border/60 bg-background/95 px-2 md:hidden">
+      <SidebarTrigger className="h-8 w-8" />
+    </div>
+  );
+}
 
 export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { isLoaded, userId } = useAuth();
@@ -55,11 +65,13 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
       <SidebarRouteSync />
       <AppSidebar />
       <SidebarInset className="flex min-h-svh flex-col">
-        {!isFullBleed && <AppHeader />}
+        {!isFullBleed && <MobileSidebarBar />}
         <div
           className={cn(
             "flex flex-1 flex-col min-h-0",
-            isFullBleed ? "overflow-hidden" : "overflow-y-auto p-4 md:p-6 lg:p-8"
+            isFullBleed
+              ? "overflow-hidden"
+              : "overflow-y-auto px-4 md:px-6 lg:px-8 pt-2 pb-2",
           )}
         >
           {children}

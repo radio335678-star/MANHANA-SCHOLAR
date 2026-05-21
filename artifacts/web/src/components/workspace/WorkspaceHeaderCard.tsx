@@ -15,6 +15,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { mainAreaFixedCn } from "@/lib/main-area-inset";
+import { useSidebar } from "@/components/ui/sidebar";
 import { WorkflowStepper } from "@/components/workspace/WorkflowStepper";
 import { WorkspaceCardMenu } from "@/components/workspace/WorkspaceCardMenu";
 
@@ -52,6 +54,8 @@ export function WorkspaceHeaderCard({
   exporting,
   onExport,
 }: WorkspaceHeaderCardProps) {
+  const { isMobile, state: sidebarState } = useSidebar();
+  const sidebarCollapsed = sidebarState === "collapsed";
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -77,20 +81,27 @@ export function WorkspaceHeaderCard({
   return (
     <AnimatePresence mode="wait">
       {collapsed ? (
-        <motion.button
-          key="header-rail"
-          type="button"
-          initial={{ opacity: 0, scaleX: 0.85 }}
-          animate={{ opacity: 1, scaleX: 1 }}
-          exit={{ opacity: 0, scaleX: 0.85 }}
-          transition={{ duration: 0.22 }}
-          onClick={() => setCollapsedPersisted(false)}
-          className="block w-full rounded-full p-0 border-0 bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:ring-offset-2"
-          aria-label="Expand workspace header"
-          title="Click to show thesis header"
-        >
-          <div className="workspace-header-rail" />
-        </motion.button>
+        <>
+          <motion.button
+            key="header-rail"
+            type="button"
+            initial={{ opacity: 0, scaleX: 0.85 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            exit={{ opacity: 0, scaleX: 0.85 }}
+            transition={{ duration: 0.22 }}
+            onClick={() => setCollapsedPersisted(false)}
+            className={cn(
+              mainAreaFixedCn(isMobile, sidebarCollapsed, "top"),
+              "block max-w-none rounded-none p-0 border-0 bg-transparent cursor-pointer",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60",
+            )}
+            aria-label="Expand workspace header"
+            title="Click to show thesis header"
+          >
+            <div className="workspace-header-rail" />
+          </motion.button>
+          <div className="h-1.5 w-full shrink-0" aria-hidden />
+        </>
       ) : (
         <motion.div
           key="header-panel"

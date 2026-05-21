@@ -111,6 +111,25 @@ export default function NewWorkspace() {
   }, [title, guideName, coGuideName, synopsisFile]);
 
   useEffect(() => {
+    if (!profile) return;
+    const fillIfEmpty = <K extends keyof WorkspaceValues>(key: K, value: WorkspaceValues[K]) => {
+      if (!form.getValues(key) && value) form.setValue(key, value);
+    };
+    fillIfEmpty("universityName", profile.universityName ?? "");
+    fillIfEmpty("collegeName", profile.collegeName ?? "");
+    fillIfEmpty("domain", profile.domain ?? "");
+    fillIfEmpty("qualification", profile.qualification ?? "");
+    fillIfEmpty("guideName", profile.guideNames ?? "");
+    if (
+      !form.getValues("state") &&
+      profile.state &&
+      INDIAN_STATES_AND_UTS.includes(profile.state as (typeof INDIAN_STATES_AND_UTS)[number])
+    ) {
+      form.setValue("state", profile.state as (typeof INDIAN_STATES_AND_UTS)[number]);
+    }
+  }, [profile, form]);
+
+  useEffect(() => {
     if (!selectedDomain) {
       setDepartments([]);
       return;
@@ -393,20 +412,6 @@ export default function NewWorkspace() {
 
                   <FormField
                     control={form.control}
-                    name="collegeName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>College / Institute</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Institute name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
                     name="coGuideName"
                     render={({ field }) => (
                       <FormItem>
@@ -415,6 +420,41 @@ export default function NewWorkspace() {
                           <Input placeholder="Dr. First Last" {...field} />
                         </FormControl>
                         <FormDescription>Second supervisor, if applicable.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="collegeName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>College / Institute</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. Grant Medical College, Mumbai" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="universityName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>University Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. Maharashtra University of Health Sciences"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          AI uses this to fetch your university&apos;s thesis guidelines during pre-thesis
+                          build.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

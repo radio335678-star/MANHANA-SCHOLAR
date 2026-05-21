@@ -4,7 +4,6 @@ import {
   masterChartVersionsTable,
   masterChartContextFilesTable,
   workspacesTable,
-  sectionsTable,
   activityEventsTable,
 } from "@workspace/db";
 import { eq, and, desc, count } from "@workspace/db";
@@ -18,11 +17,12 @@ import {
   bucketFor,
 } from "../lib/supabaseStorage";
 import { createClient } from "@supabase/supabase-js";
-import { getWorkspaceAiContext } from "../lib/workspaceContext";
 import { isAtLeastLocked, isWorkflowState } from "../types/workflow";
 import { saveArtifactToVault } from "../lib/vaultArtifact";
 import { extractDatasetContextText } from "../lib/contextExtract";
+import { buildDatasetGenerationContext, loadMethodsExcerpt } from "../lib/datasetContext";
 import { logger } from "../lib/logger";
+import { getKimiApiKey } from "../lib/kimiModels";
 
 const KIMI_GENERATION_TIMEOUT_MS = 110_000; // 110s — beats Render's 120s gateway timeout
 
@@ -144,11 +144,20 @@ export async function uploadChartContextFile(
     throw new Error("Maximum 20 context files per dataset. Remove a file before uploading more.");
   }
 
-  const extractedText = await extractDatasetContextText(
+  let extractedText = await extractDatasetContextText(
     file.buffer,
     file.mimetype,
     file.originalname,
   );
+  if (
+    (!extractedText.trim() || extractedText.includes("extraction failed")) &&
+    getKimiApiKey()
+  ) {
+    extractedText = await extractDatasetContextText(file.buffer, file.mimetype, file.originalname);
+  }
+  if (!extractedText.trim()) {
+    extractedText = `[Uploaded: ${file.originalname} — text could not be extracted; describe this file in chat and regenerate.]`;
+  }
 
   let vaultResourceId: number | undefined;
   if (isStorageConfigured()) {
@@ -183,9 +192,19 @@ export async function uploadChartContextFiles(
   userId: number,
   files: Array<{ buffer: Buffer; originalname: string; mimetype: string }>,
 ) {
-  const results = [];
+  const results: Awaited<ReturnType<typeof uploadChartContextFile>>[] = [];
+  const errors: string[] = [];
   for (const file of files) {
-    results.push(await uploadChartContextFile(workspaceId, chartId, userId, file));
+    try {
+      results.push(await uploadChartContextFile(workspaceId, chartId, userId, file));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      errors.push(`${file.originalname}: ${msg}`);
+      logger.warn({ err, filename: file.originalname }, "Context file upload partial failure");
+    }
+  }
+  if (results.length === 0 && errors.length > 0) {
+    throw new Error(errors.join("; "));
   }
   return results;
 }
@@ -213,31 +232,35 @@ export async function generateMasterChartVersion(
     .limit(1);
   if (!chart) throw new Error("Chart not found");
 
-  const { contextBlock } = await getWorkspaceAiContext(workspaceId);
-  const contextFiles = await loadChartContextText(chartId);
+  const chartContextText = await loadChartContextText(chartId);
 
   let methodsText = "";
   if (opts.mode === "auto_from_methods" || chart.mode === "auto_from_methods") {
-    const methods = await db
-      .select()
-      .from(sectionsTable)
-      .where(
-        and(
-          eq(sectionsTable.workspaceId, workspaceId),
-          eq(sectionsTable.type, "methodology"),
-        ),
-      )
-      .limit(1);
-    methodsText = methods[0]?.content?.replace(/<[^>]+>/g, " ").slice(0, 4000) ?? "";
+    methodsText = await loadMethodsExcerpt(workspaceId);
   }
 
-  const prompt =
-    opts.prompt ??
-    (chart.mode === "auto_from_methods"
+  const defaultPrompt =
+    chart.mode === "auto_from_methods"
       ? "Generate a patient master chart template matching the study design in Methods."
-      : "Generate a clinical study master chart with standard demographic and outcome columns.");
+      : "Generate a clinical study master chart with standard demographic and outcome columns.";
 
-  const fullContext = `${contextBlock}\n\nMethods excerpt:\n${methodsText}\n\nUploaded dataset context:\n${contextFiles}`;
+  const { prompt, fullContext } = await buildDatasetGenerationContext(
+    workspaceId,
+    chartContextText,
+    opts.prompt,
+    methodsText,
+    defaultPrompt,
+  );
+
+  logger.info(
+    {
+      workspaceId,
+      chartId,
+      promptLen: prompt.length,
+      contextLen: fullContext.length,
+    },
+    "Dataset generation context assembled",
+  );
 
   let currentSheet: Awaited<ReturnType<typeof parseXlsx>> | null = null;
   if (chart.currentVersion > 0) {
@@ -257,11 +280,39 @@ export async function generateMasterChartVersion(
   }
 
   logger.info({ workspaceId, chartId }, "Starting Kimi sheet generation");
-  const { spec, modelUsed, workbook } = await withTimeout(
-    kimiGenerateSheetSpec(prompt, fullContext, currentSheet),
-    KIMI_GENERATION_TIMEOUT_MS,
-    "kimiGenerateSheetSpec",
-  );
+  let spec: Awaited<ReturnType<typeof kimiGenerateSheetSpec>>["spec"];
+  let modelUsed: string;
+  let workbook: Awaited<ReturnType<typeof kimiGenerateSheetSpec>>["workbook"];
+  let usedFallback = false;
+
+  try {
+    const result = await withTimeout(
+      kimiGenerateSheetSpec(prompt, fullContext, currentSheet),
+      KIMI_GENERATION_TIMEOUT_MS,
+      "kimiGenerateSheetSpec",
+    );
+    spec = result.spec;
+    modelUsed = result.modelUsed;
+    workbook = result.workbook;
+    usedFallback = result.usedFallback;
+  } catch (err) {
+    const timedOut = err instanceof Error && err.message.toLowerCase().includes("timed out");
+    if (!timedOut) throw err;
+    logger.warn({ workspaceId, chartId }, "Kimi timed out — using safe fallback workbook");
+    const fallback = await kimiGenerateSheetSpec(
+      prompt,
+      fullContext.slice(0, 50_000),
+      currentSheet,
+    );
+    spec = fallback.spec;
+    modelUsed = fallback.modelUsed;
+    workbook = fallback.workbook;
+    usedFallback = true;
+  }
+
+  if (usedFallback) {
+    logger.warn({ workspaceId, chartId, modelUsed }, "Dataset generation used template fallback");
+  }
   const xlsx = await buildXlsxFromSpec(workbook);
   const stats = computeBasicStats(spec);
 
@@ -292,7 +343,7 @@ export async function generateMasterChartVersion(
     .set({ currentVersion: nextVersion, updatedAt: new Date() })
     .where(eq(masterChartsTable.id, chartId));
 
-  return { chart, version: version!, spec, stats, modelUsed, vaultResourceId };
+  return { chart, version: version!, spec, stats, modelUsed, vaultResourceId, usedFallback };
 }
 
 export async function uploadMasterChartFile(

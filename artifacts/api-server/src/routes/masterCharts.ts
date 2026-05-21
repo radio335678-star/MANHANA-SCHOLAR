@@ -15,6 +15,7 @@ import {
   deleteChartContextFile,
 } from "../services/masterChart";
 import { z } from "zod";
+import { logger } from "../lib/logger";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
@@ -26,10 +27,26 @@ const CreateChartBody = z.object({
   linkedSectionId: z.number().optional(),
 });
 
-const GenerateBody = z.object({
-  prompt: z.string().optional(),
-  mode: z.enum(["chat_to_excel", "auto_from_methods"]).optional(),
-});
+const GenerateBody = z
+  .object({
+    prompt: z.string().optional(),
+    content: z.string().optional(),
+    message: z.string().optional(),
+    text: z.string().optional(),
+    mode: z.enum(["chat_to_excel", "auto_from_methods"]).optional(),
+  })
+  .transform((b) => ({
+    prompt: (b.prompt ?? b.content ?? b.message ?? b.text)?.trim() || undefined,
+    mode: b.mode,
+  }));
+
+function formatZodError(err: z.ZodError): string {
+  const first = err.issues[0];
+  if (!first) return "Invalid request";
+  return first.message.includes("Required") || first.message.includes("expected")
+    ? "Invalid request body. Send JSON with a prompt field."
+    : first.message;
+}
 
 function isAllowedContextFile(mimetype: string, originalname: string): boolean {
   return (
@@ -169,9 +186,18 @@ router.post(
 
     const workspaceId = parseInt(String(req.params.workspaceId), 10);
     const chartId = parseInt(String(req.params.chartId), 10);
-    const parsed = GenerateBody.safeParse(req.body);
+    const bodyRaw = req.body;
+    if (bodyRaw == null || (typeof bodyRaw === "object" && Object.keys(bodyRaw).length === 0)) {
+      // Empty body is OK — server uses default prompt + vault/uploads context
+    }
+    const parsed = GenerateBody.safeParse(bodyRaw ?? {});
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(422).json({ error: formatZodError(parsed.error) });
+      return;
+    }
+
+    if (isNaN(workspaceId) || isNaN(chartId)) {
+      res.status(422).json({ error: "Invalid workspace or chart id" });
       return;
     }
 
@@ -182,11 +208,28 @@ router.post(
         stats: result.stats,
         schema: result.spec,
         vaultResourceId: result.vaultResourceId,
+        usedFallback: result.usedFallback ?? false,
+        warning: result.usedFallback
+          ? "AI used a starter template. Upload context files or refine your prompt and try again."
+          : undefined,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Generate failed";
       const isTimeout = msg.toLowerCase().includes("timed out");
-      res.status(isTimeout ? 408 : 400).json({ error: msg });
+      const isGate =
+        msg.includes("locked pre-thesis") || msg.includes("Chart not found");
+      if (isGate) {
+        res.status(msg.includes("not found") ? 404 : 403).json({ error: msg });
+        return;
+      }
+      if (isTimeout) {
+        res.status(408).json({ error: msg });
+        return;
+      }
+      logger.error({ err, workspaceId, chartId }, "Dataset generate unexpected error");
+      res.status(500).json({
+        error: "Dataset generation failed unexpectedly. Please try again in a moment.",
+      });
     }
   },
 );
@@ -234,7 +277,9 @@ router.post(
         })),
       });
     } catch (err) {
-      res.status(400).json({ error: err instanceof Error ? err.message : "Context upload failed" });
+      const msg = err instanceof Error ? err.message : "Context upload failed";
+      const status = msg.includes("Maximum 20") ? 409 : msg.includes("not found") ? 404 : 500;
+      res.status(status).json({ error: msg });
     }
   },
 );

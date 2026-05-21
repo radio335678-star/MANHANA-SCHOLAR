@@ -334,7 +334,13 @@ export function MasterChartPanel({
         const errMsg = await safeErrorMessage(res);
         throw new Error(errMsg);
       }
-      const json = await res.json() as { schema: unknown; version: number; vaultResourceId?: number };
+      const json = await res.json() as {
+        schema: unknown;
+        version: number;
+        vaultResourceId?: number;
+        usedFallback?: boolean;
+        warning?: string;
+      };
       const spec = parseSheetSpec(json.schema);
       const prevCols = activeSpec.columns?.map((c) => c.header) ?? [];
       const newCols = spec.columns?.map((c) => c.header) ?? [];
@@ -355,8 +361,11 @@ export function MasterChartPanel({
       await loadDetail(selectedId);
       await loadCharts();
       toast({
-        title: `Chart v${json.version} ready`,
-        description: json.vaultResourceId ? "Saved to Research Vault." : undefined,
+        title: json.usedFallback ? `Chart v${json.version} (starter template)` : `Chart v${json.version} ready`,
+        description:
+          json.warning ??
+          (json.vaultResourceId ? "Saved to Research Vault." : undefined),
+        variant: json.usedFallback ? "default" : undefined,
       });
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Generate failed";

@@ -35,7 +35,7 @@ Rules:
 - Extract ALL rows and columns from each table — do not summarize or skip charts.
 - Follow user instructions for which charts to include (default: ALL charts in context).`;
 
-const FALLBACK_WORKBOOK: WorkbookSpec = {
+export const FALLBACK_WORKBOOK: WorkbookSpec = {
   name: "MasterChart",
   sheets: [
     {
@@ -206,10 +206,15 @@ async function generateWorkbookSinglePass(
       ? `\n\nCURRENT CHART (apply user edits; preserve data unless asked to replace):\n${JSON.stringify(currentSheet, null, 2)}`
       : "";
 
-  const user = `${prompt}
+  const contextBlock =
+    context.trim().length > 0
+      ? context.slice(0, 100_000)
+      : "No files uploaded yet. Infer columns from the user request and standard clinical study design.";
 
-Uploaded context (read ALL charts before responding):
-${context.slice(0, 100_000)}${editBlock}`;
+  const user = `User request:\n${prompt || "Generate a master data chart."}
+
+Context (research vault, pre-thesis, uploaded files — read ALL before responding):
+${contextBlock}${editBlock}`;
 
   const { parsed, modelUsed, finishReason } = await callSheetJson(WORKBOOK_SYSTEM, user, 16384);
 
@@ -320,6 +325,22 @@ export async function generateWorkbookFromContext(
     if (sheet) {
       return { spec: { name: "Master Data Workbook", sheets: [sheet] }, modelUsed };
     }
-    throw new Error("AI could not parse the uploaded document into a spreadsheet. Try re-uploading or simplifying the prompt.");
+    logger.warn("All sheet generation strategies failed — using template fallback");
+    return { spec: FALLBACK_WORKBOOK, modelUsed: "template-fallback" };
+  }
+}
+
+/** Never throws — always returns a workbook (AI or template). */
+export async function generateWorkbookSafe(
+  prompt: string,
+  context: string,
+  currentSheet?: SheetSpec | null,
+): Promise<{ spec: WorkbookSpec; modelUsed: string; usedFallback: boolean }> {
+  try {
+    const { spec, modelUsed } = await generateWorkbookFromContext(prompt, context, currentSheet);
+    return { spec, modelUsed, usedFallback: modelUsed === "template-fallback" };
+  } catch (err) {
+    logger.error({ err }, "generateWorkbookSafe caught error — template fallback");
+    return { spec: FALLBACK_WORKBOOK, modelUsed: "template-fallback", usedFallback: true };
   }
 }

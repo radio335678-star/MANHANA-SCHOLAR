@@ -32,6 +32,8 @@ import {
 } from "../lib/supabaseStorage";
 import { loadVaultAiContext } from "../lib/loadVaultForAi";
 import { catalogToArray } from "@workspace/vault-citations";
+import { extractDatasetContextText } from "../lib/contextExtract";
+import { getKimiApiKey } from "../lib/kimiModels";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -172,11 +174,29 @@ router.post(
         file.buffer,
         file.mimetype,
       );
+
+      let extractedContent: string | null = null;
+      if (getKimiApiKey()) {
+        try {
+          const text = await extractDatasetContextText(
+            file.buffer,
+            file.mimetype,
+            file.originalname,
+          );
+          if (text.trim() && !text.includes("set KIMI_API_KEY")) {
+            extractedContent = text.slice(0, 100_000);
+          }
+        } catch {
+          /* vault row still saved; dataset builder can re-extract from storage */
+        }
+      }
+
       const [updated] = await db
         .update(vaultResourcesTable)
         .set({
           storagePath,
           processingStatus: "ready",
+          content: extractedContent,
           updatedAt: new Date(),
         })
         .where(eq(vaultResourcesTable.id, resource!.id))

@@ -27,7 +27,10 @@ function isRetryableModelError(err: unknown): boolean {
     msg.includes("not found") ||
     msg.includes("model") ||
     msg.includes("unavailable") ||
-    msg.includes("overloaded")
+    msg.includes("overloaded") ||
+    msg.includes("missing") ||
+    msg.includes("invalid") ||
+    msg.includes("400")
   );
 }
 

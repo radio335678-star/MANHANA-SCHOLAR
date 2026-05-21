@@ -77,11 +77,21 @@ export async function downloadText(
   storagePath: string,
   kind: StorageBucketKind = "artifacts",
 ): Promise<string | null> {
+  const buf = await downloadBuffer(storagePath, kind);
+  if (!buf) return null;
+  return buf.toString("utf-8");
+}
+
+export async function downloadBuffer(
+  storagePath: string,
+  kind: StorageBucketKind = "artifacts",
+): Promise<Buffer | null> {
   const client = getClient();
   if (!client) return null;
   const { data, error } = await client.storage.from(bucketFor(kind)).download(storagePath);
   if (error || !data) return null;
-  return await data.text();
+  const ab = await data.arrayBuffer();
+  return Buffer.from(ab);
 }
 
 export async function createSignedDownloadUrl(

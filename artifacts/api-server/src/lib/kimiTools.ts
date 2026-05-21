@@ -5,7 +5,7 @@ import { getKimiApiKey } from "./kimiModels";
 import { logger } from "./logger";
 import { createKimiCompletion } from "./kimiModelRouter";
 import {
-  generateWorkbookFromContext,
+  generateWorkbookSafe,
   workbookToLegacySpec,
   type WorkbookSpec,
 } from "./sheetGeneration";
@@ -184,12 +184,22 @@ export async function kimiGenerateSheetSpec(
   prompt: string,
   context: string,
   currentSheet?: SheetSpec | null,
-): Promise<{ spec: SheetSpec & { sheets?: SheetSpec[] }; modelUsed: string; workbook: WorkbookSpec }> {
-  const { spec: workbook, modelUsed } = await generateWorkbookFromContext(prompt, context, currentSheet);
+): Promise<{
+  spec: SheetSpec & { sheets?: SheetSpec[] };
+  modelUsed: string;
+  workbook: WorkbookSpec;
+  usedFallback: boolean;
+}> {
+  const { spec: workbook, modelUsed, usedFallback } = await generateWorkbookSafe(
+    prompt,
+    context,
+    currentSheet,
+  );
   return {
     spec: workbookToLegacySpec(workbook),
     modelUsed,
     workbook,
+    usedFallback,
   };
 }
 

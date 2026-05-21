@@ -25,13 +25,10 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import {
   Loader2,
-  ArrowLeft,
-  PenTool,
   Database,
   Activity,
   LayoutList,
   CheckCircle2,
-  Download,
   ChevronRight,
   FileText,
   Sparkles,
@@ -46,11 +43,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { WorkflowStepper } from "@/components/workspace/WorkflowStepper";
 import { PreThesisPanel } from "@/components/workspace/PreThesisPanel";
 import { MasterChartPanel } from "@/components/workspace/MasterChartPanel";
-import { WorkspaceCardMenu } from "@/components/workspace/WorkspaceCardMenu";
 import { OpenEditorBanner } from "@/components/workspace/OpenEditorBanner";
+import { WorkspaceHeaderCard } from "@/components/workspace/WorkspaceHeaderCard";
 
 
 const LOCKED_WORKFLOW_STATES = new Set([
@@ -386,88 +382,15 @@ export default function WorkspaceDetail({ id }: { id: string }) {
         }}
       />
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="relative flex items-start gap-4 rounded-2xl border border-border/60 bg-gradient-to-br from-primary/[0.05] via-background to-background p-5 sm:p-6 shadow-sm overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,hsl(var(--primary)/0.07),transparent_60%)] pointer-events-none" />
-        <Link href="/workspaces">
-          <Button variant="ghost" size="icon" className="relative z-10 shrink-0 text-muted-foreground hover:text-foreground mt-0.5">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
-        <div className="relative z-10 flex-1 min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="font-medium">{workspace.domain}</Badge>
-            {workspace.qualification && (
-              <Badge variant="outline" className="font-medium">{workspace.qualification}</Badge>
-            )}
-            <Badge
-              variant="outline"
-              className={cn(
-                "capitalize font-medium",
-                workspace.status === "active"
-                  ? "border-primary/30 text-primary bg-primary/5"
-                  : workspace.status === "completed"
-                  ? "border-green-300 text-green-700 bg-green-50"
-                  : "border-border text-muted-foreground",
-              )}
-            >
-              {workspace.status.replace("_", " ")}
-            </Badge>
-          </div>
-          <h1 className="text-3xl font-serif font-bold text-foreground leading-tight">{workspace.title}</h1>
-          {workspace.description && (
-            <p className="text-muted-foreground max-w-3xl leading-relaxed">{workspace.description}</p>
-          )}
-          <div className="flex flex-wrap items-center gap-5 pt-1 text-sm text-muted-foreground">
-            {workspace.guideName && (
-              <span className="flex items-center gap-1.5">
-                <PenTool className="w-3.5 h-3.5" /> Guide: {workspace.guideName}
-              </span>
-            )}
-            {workspace.coGuideName && (
-              <span className="flex items-center gap-1.5">
-                <PenTool className="w-3.5 h-3.5" /> Co-Guide: {workspace.coGuideName}
-              </span>
-            )}
-            {workspace.state && (
-              <span className="flex items-center gap-1.5">{workspace.state}</span>
-            )}
-            <span className="flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5" /> Updated {format(new Date(workspace.updatedAt), "MMM d, yyyy")}
-            </span>
-            {totalWords > 0 && (
-              <span className="flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" /> {totalWords.toLocaleString()} words · ~{estPages} pages
-              </span>
-            )}
-          </div>
-          <WorkflowStepper currentState={workflowState} />
-        </div>
-        <div className="relative z-10 flex items-center gap-2 shrink-0">
-          <WorkspaceCardMenu
-            workspaceId={workspace.id}
-            workspaceTitle={workspace.title}
-            status={workspace.status}
-            redirectAfterDelete
-            alwaysVisible
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            disabled={exporting}
-            className="gap-1.5"
-          >
-            {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-            Export DOCX
-          </Button>
-          <Link href={`/workspaces/${workspace.id}/editor`}>
-            <Button size="sm" className="gap-1.5">
-              <Edit3 className="w-3.5 h-3.5" /> Open Editor
-            </Button>
-          </Link>
-        </div>
-      </div>
+      {/* ── Header (collapsible) ───────────────────────────────────────── */}
+      <WorkspaceHeaderCard
+        workspace={workspace}
+        workflowState={workflowState}
+        totalWords={totalWords}
+        estPages={estPages}
+        exporting={exporting}
+        onExport={() => void handleExport()}
+      />
 
       {/* ── Quick Stats ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

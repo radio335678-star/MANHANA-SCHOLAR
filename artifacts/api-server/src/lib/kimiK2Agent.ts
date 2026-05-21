@@ -49,7 +49,10 @@ export async function runPreThesisAgentChat(params: {
     return { assistantContent: msg, totalTokens: 0 };
   }
 
-  const systemPrompt = buildPreThesisAgentSystemPrompt(params.context);
+  const systemPrompt = buildPreThesisAgentSystemPrompt(params.context, {
+    userMessage: params.userMessage,
+    historyLength: params.history.length,
+  });
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
@@ -68,7 +71,7 @@ export async function runPreThesisAgentChat(params: {
       messages,
       tools: buildTools(),
       tool_choice: "auto",
-      max_tokens: 16384,
+      max_tokens: 8192,
       thinking: { type: "enabled" },
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
       thinking?: { type: "enabled" | "disabled" };

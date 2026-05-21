@@ -12,6 +12,32 @@
 .open-editor-banner-glow {
   animation: open-editor-banner-pulse 2.5s ease-in-out infinite;
 }
+
+@keyframes open-editor-rail-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.open-editor-banner-rail {
+  height: 4px;
+  width: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    #10b981,
+    #8b5cf6,
+    #3b82f6,
+    #f97316,
+    #10b981,
+    #8b5cf6
+  );
+  background-size: 200% 100%;
+  animation: open-editor-rail-shift 2.8s linear infinite;
+}
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";

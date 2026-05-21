@@ -357,12 +357,20 @@ export async function runVisionRead({
       model: process.env.KIMI_VISION_MODEL ?? process.env.KIMI_PRIMARY_MODEL ?? "kimi-k2.6",
       messages,
       max_tokens: 8192,
-      thinking: { type: "enabled" },
+      // Thinking streams into reasoning_content, not content — Vision Reader UI only renders content tokens.
+      thinking: { type: "disabled" },
     },
     wrappedOnStream,
   );
 
-  const text = result.result.choices[0]?.message.content ?? "";
+  const message = result.result.choices[0]?.message;
+  const contentText = message?.content ?? "";
+  const reasoningText =
+    (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? "";
+  const text =
+    contentText.trim() ||
+    reasoningText.trim() ||
+    thinkingText.trim();
   const tokensUsed = result.result.usage?.total_tokens ?? 0;
 
   return { text, thinkingText, tokensUsed, modelUsed: result.modelUsed, fileRefs };

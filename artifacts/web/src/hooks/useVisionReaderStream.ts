@@ -95,6 +95,7 @@ export function useVisionReaderStream() {
                   break;
                 case "done":
                   if (event.sessionId) setLastSessionId(event.sessionId);
+                  if (event.content) setStreamContent(event.content);
                   break;
                 case "ping":
                   setLastPingAt(Date.now());
@@ -105,6 +106,24 @@ export function useVisionReaderStream() {
             } catch {
               /* ignore parse errors */
             }
+          }
+        }
+
+        // Flush trailing SSE frame (last chunk may not end with newline)
+        if (buffer.startsWith("data: ")) {
+          try {
+            const event = JSON.parse(buffer.slice(6)) as VisionStreamEvent;
+            onEvent(event);
+            if (event.type === "token") {
+              setStreamContent((prev) => prev + event.content);
+            } else if (event.type === "thinking") {
+              setThinkingContent((prev) => prev + event.content);
+            } else if (event.type === "done") {
+              if (event.sessionId) setLastSessionId(event.sessionId);
+              if (event.content) setStreamContent(event.content);
+            }
+          } catch {
+            /* ignore parse errors */
           }
         }
       } finally {

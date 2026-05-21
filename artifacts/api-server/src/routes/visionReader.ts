@@ -123,13 +123,20 @@ router.post(
       send({ type: "files_accepted", count: files.length, names: files.map((f) => f.name) });
 
       const onStream = (event: KimiStreamEvent) => {
-        if (event.type === "token") outputText += event.content;
-        if (event.type === "thinking") thinkingText += event.content;
-        send(event as unknown as Record<string, unknown>);
+        if (event.type === "token") {
+          outputText += event.content;
+          send({ type: "token", content: event.content });
+        } else if (event.type === "thinking") {
+          thinkingText += event.content;
+          // Kimi thinking models stream the answer in reasoning_content — mirror to content channel for the UI.
+          outputText += event.content;
+          send({ type: "thinking", content: event.content });
+          send({ type: "token", content: event.content });
+        }
       };
 
       const result = await runVisionRead({ files, prompt: userPrompt, onStream });
-      outputText = result.text || outputText;
+      outputText = result.text || outputText || thinkingText;
       thinkingText = result.thinkingText || thinkingText;
       tokensUsed = result.tokensUsed;
       modelUsed = result.modelUsed;
@@ -147,6 +154,13 @@ router.post(
           tokensUsed,
         })
         .returning({ id: visionReaderSessionsTable.id });
+
+      if (!outputText.trim()) {
+        logger.warn(
+          { workspaceId, fileCount: files.length, tokensUsed, modelUsed },
+          "Vision reader finished with empty output",
+        );
+      }
 
       send({
         type: "done",

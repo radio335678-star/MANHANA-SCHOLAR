@@ -319,6 +319,7 @@ export function VisionReaderPanel({
     thinkingContent,
     lastSessionId,
     analyze,
+    fetchSession,
     fetchSessions,
     saveToVault,
     reset,
@@ -336,8 +337,9 @@ export function VisionReaderPanel({
   const [autoSyncOn, setAutoSyncOn] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState("");
 
-  // Track output during streaming
+  // Track output during streaming (refs avoid stale state in SSE done handler)
   const outputRef = useRef("");
+  const thinkingRef = useRef("");
 
   useEffect(() => {
     if (!streaming) return;
@@ -348,7 +350,7 @@ export function VisionReaderPanel({
   // Scroll output area to bottom as content streams in
   useEffect(() => {
     outputEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [streamContent]);
+  }, [streamContent, thinkingContent]);
 
   // ── Drag & drop ─────────────────────────────────────────────────────────────
 
@@ -385,24 +387,45 @@ export function VisionReaderPanel({
     if (files.length === 0 || streaming) return;
     reset();
     outputRef.current = "";
+    thinkingRef.current = "";
     setDisplayText("");
     setStreamingThinking("");
     setSavedToVault(false);
 
     const prompt = customPrompt.trim() || null;
 
-    await analyze(workspaceId, files, prompt, getToken, (event) => {
+    await analyze(workspaceId, files, prompt, getToken, async (event) => {
       if (event.type === "token") {
         outputRef.current += event.content;
         setDisplayText(outputRef.current);
       }
       if (event.type === "thinking") {
+        thinkingRef.current += event.content;
         setStreamingThinking((prev) => prev + event.content);
       }
       if (event.type === "done") {
-        const finalText = event.content || outputRef.current;
-        setDisplayText(finalText);
-        outputRef.current = finalText;
+        let finalText =
+          event.content.trim() ||
+          outputRef.current.trim() ||
+          thinkingRef.current.trim();
+
+        if (!finalText && event.sessionId) {
+          const session = await fetchSession(workspaceId, event.sessionId, getToken);
+          finalText = session?.outputText?.trim() ?? "";
+        }
+
+        if (finalText) {
+          setDisplayText(finalText);
+          outputRef.current = finalText;
+        } else {
+          toast({
+            variant: "destructive",
+            title: "No output received",
+            description:
+              "The read finished but returned no text. Try History for a saved session, or run again with fewer files.",
+          });
+        }
+
         if (autoSyncOn && finalText && onSendToDataset) {
           onSendToDataset(`[Vision Reader Output]\n\n${finalText}`);
         }
@@ -411,7 +434,19 @@ export function VisionReaderPanel({
         toast({ variant: "destructive", title: "Vision read failed", description: event.message });
       }
     });
-  }, [files, streaming, reset, customPrompt, analyze, workspaceId, getToken, autoSyncOn, onSendToDataset, toast]);
+  }, [
+    files,
+    streaming,
+    reset,
+    customPrompt,
+    analyze,
+    workspaceId,
+    getToken,
+    autoSyncOn,
+    onSendToDataset,
+    toast,
+    fetchSession,
+  ]);
 
   // ── Copy ────────────────────────────────────────────────────────────────────
 
@@ -451,8 +486,8 @@ export function VisionReaderPanel({
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
-  const hasOutput = Boolean(displayText || streamContent);
-  const activeText = displayText || streamContent;
+  const hasOutput = Boolean(displayText || streamContent || thinkingContent);
+  const activeText = displayText || streamContent || thinkingContent;
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-full min-h-[520px]">

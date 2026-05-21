@@ -18,6 +18,9 @@ import {
   Maximize2,
   RefreshCw,
   RotateCcw,
+  Brain,
+  Wrench,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChartContextFile } from "@/lib/masterChartTypes";
@@ -54,7 +57,7 @@ function fileIcon(filename: string) {
   return <FileText className="w-3 h-3 shrink-0 text-blue-500" />;
 }
 
-function ThinkingAnimation({ statusText }: { statusText?: string }) {
+function ThinkingAnimation({ statusText, thinkingContent }: { statusText?: string; thinkingContent?: string }) {
   const [stepIdx, setStepIdx] = useState(0);
 
   useEffect(() => {
@@ -68,10 +71,15 @@ function ThinkingAnimation({ statusText }: { statusText?: string }) {
     <div className="mr-auto bg-secondary rounded-lg px-3 py-2.5 max-w-[95%] space-y-1.5">
       <div className="flex items-center gap-2 text-xs text-primary">
         <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-        <span className="animate-in fade-in slide-in-from-left-1 duration-300 key-fade">
+        <span className="animate-in fade-in slide-in-from-left-1 duration-300">
           {statusText ?? THINKING_STEPS[stepIdx]}
         </span>
       </div>
+      {thinkingContent && (
+        <p className="text-[10px] text-muted-foreground italic leading-relaxed line-clamp-2">
+          {thinkingContent.slice(0, 160)}…
+        </p>
+      )}
       <div className="flex gap-1">
         {[0, 1, 2].map((i) => (
           <span
@@ -85,10 +93,43 @@ function ThinkingAnimation({ statusText }: { statusText?: string }) {
   );
 }
 
+type ToolPillProps = { tool: string; message: string; ok?: boolean; active?: boolean };
+function ToolPill({ tool, message, ok, active }: ToolPillProps) {
+  const toolLabel: Record<string, string> = {
+    read_sheet_state: "Reading schema",
+    read_context_bundle: "Loading context",
+    apply_sheet_patch: "Patching sheet",
+    validate_sheet: "Validating",
+    commit_version: "Saving version",
+    rethink: "Planning",
+  };
+  const label = toolLabel[tool] ?? tool;
+  return (
+    <div className={cn(
+      "inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full border font-medium",
+      active ? "bg-primary/10 border-primary/30 text-primary animate-pulse" :
+      ok === false ? "bg-destructive/10 border-destructive/20 text-destructive" :
+      "bg-green-50 border-green-200 text-green-700",
+    )}>
+      {active ? (
+        <Wrench className="w-2.5 h-2.5 animate-spin" />
+      ) : ok === false ? (
+        <X className="w-2.5 h-2.5" />
+      ) : (
+        <CheckCircle2 className="w-2.5 h-2.5" />
+      )}
+      {label}{message && !active ? `: ${message.slice(0, 40)}` : ""}
+    </div>
+  );
+}
+
 type MasterChartAiAssistantProps = {
   messages: ChatMessage[];
   busy: boolean;
   statusText?: string;
+  thinking?: string;
+  toolStatus?: string | null;
+  streaming?: boolean;
   contextFiles: ChartContextFile[];
   lastPrompt?: string | null;
   onSend: (text: string) => void;
@@ -105,6 +146,9 @@ export function MasterChartAiAssistant({
   messages,
   busy,
   statusText,
+  thinking,
+  toolStatus,
+  streaming,
   contextFiles,
   lastPrompt,
   onSend,
@@ -179,9 +223,18 @@ export function MasterChartAiAssistant({
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-primary" />
+          {streaming ? (
+            <Brain className="w-4 h-4 text-primary animate-pulse" />
+          ) : (
+            <Sparkles className="w-4 h-4 text-primary" />
+          )}
           <span className="font-medium text-sm">AI Dataset Builder</span>
-          {contextFiles.length > 0 && (
+          {streaming && (
+            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20">
+              Agent active
+            </Badge>
+          )}
+          {!streaming && contextFiles.length > 0 && (
             <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
               {contextFiles.length} file{contextFiles.length > 1 ? "s" : ""} in context
             </Badge>
@@ -277,9 +330,19 @@ export function MasterChartAiAssistant({
               </div>
             );
           })}
-          {busy && <ThinkingAnimation statusText={statusText} />}
+          {/* Tool status pills during streaming */}
+          {streaming && toolStatus && (
+            <div className="mr-auto">
+              <ToolPill tool="" message={toolStatus} active={true} />
+            </div>
+          )}
+          {/* Thinking or idle spinner */}
+          {busy && !streaming && <ThinkingAnimation statusText={statusText} thinkingContent={thinking} />}
+          {streaming && !toolStatus && (
+            <ThinkingAnimation statusText={statusText ?? "Agent working…"} thinkingContent={thinking} />
+          )}
           {/* Retry hint outside messages when last action failed */}
-          {!busy && lastErrorMsg && lastPrompt && onRetry && messages.length > 0 && (
+          {!busy && !streaming && lastErrorMsg && lastPrompt && onRetry && messages.length > 0 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
               <RefreshCw className="w-3 h-3 shrink-0" />
               <span>Generation failed. Edit your prompt or try again.</span>
@@ -343,7 +406,7 @@ export function MasterChartAiAssistant({
                 "w-full gap-2 text-xs border-dashed",
                 dragOver && "border-primary bg-primary/5",
               )}
-              disabled={busy || uploadingContext || slotsLeft <= 0}
+              disabled={busy || streaming || uploadingContext || slotsLeft <= 0}
               onClick={() => fileRef.current?.click()}
             >
               {uploadingContext ? (
@@ -400,7 +463,7 @@ export function MasterChartAiAssistant({
             onChange={(e) => setInput(e.target.value)}
             placeholder="Describe columns, edits, or ask to remove rows/columns…"
             rows={2}
-            disabled={busy}
+            disabled={busy || streaming}
             className="text-sm resize-none"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -410,11 +473,11 @@ export function MasterChartAiAssistant({
             }}
           />
           <div className="flex gap-2">
-            <Button className="flex-1 gap-2" disabled={busy || !input.trim()} onClick={handleSend}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {busy ? "Building…" : "Send"}
+            <Button className="flex-1 gap-2" disabled={busy || streaming || !input.trim()} onClick={handleSend}>
+              {(busy || streaming) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {streaming ? "Agent running…" : busy ? "Building…" : "Send"}
             </Button>
-            {onRetry && !busy && lastErrorMsg && (
+            {onRetry && !busy && !streaming && lastErrorMsg && (
               <Button
                 variant="outline"
                 size="icon"

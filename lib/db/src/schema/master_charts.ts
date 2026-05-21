@@ -44,6 +44,23 @@ export const insertMasterChartSchema = createInsertSchema(masterChartsTable).omi
 export const selectMasterChartSchema = createSelectSchema(masterChartsTable);
 export const selectMasterChartVersionSchema = createSelectSchema(masterChartVersionsTable);
 
+export const datasetChatMessagesTable = pgTable("dataset_chat_messages", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id")
+    .notNull()
+    .references(() => workspacesTable.id, { onDelete: "cascade" }),
+  chartId: integer("chart_id")
+    .notNull()
+    .references(() => masterChartsTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull(),
+  role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
+  content: text("content").notNull(),
+  toolCallsJson: jsonb("tool_calls_json").$type<Record<string, unknown>[] | null>(),
+  tokensUsed: integer("tokens_used"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export type MasterChart = typeof masterChartsTable.$inferSelect;
 export type MasterChartVersion = typeof masterChartVersionsTable.$inferSelect;
+export type DatasetChatMessage = typeof datasetChatMessagesTable.$inferSelect;
 export type InsertMasterChart = z.infer<typeof insertMasterChartSchema>;

@@ -14,6 +14,16 @@ import {
   deleteMasterChartVersion,
   deleteChartContextFile,
 } from "../services/masterChart";
+import { runDatasetAgentChat } from "../lib/datasetAgent";
+import { db } from "@workspace/db";
+import {
+  datasetChatMessagesTable,
+  masterChartsTable,
+  workspacesTable,
+  eq,
+  and,
+  desc,
+} from "@workspace/db";
 import { z } from "zod";
 import { logger } from "../lib/logger";
 
@@ -364,6 +374,186 @@ router.post(
       return;
     }
     res.json({ stats: data.version.statsSummary });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dataset Agent Chat routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ChatSendBody = z.object({
+  content: z.string().min(1).max(12000),
+});
+
+async function verifyChartOwnership(
+  workspaceId: number,
+  chartId: number,
+  userId: number,
+): Promise<boolean> {
+  const [chart] = await db
+    .select({ id: masterChartsTable.id })
+    .from(masterChartsTable)
+    .where(and(eq(masterChartsTable.id, chartId), eq(masterChartsTable.workspaceId, workspaceId)))
+    .limit(1);
+  if (!chart) return false;
+
+  const [ws] = await db
+    .select({ userId: workspacesTable.userId })
+    .from(workspacesTable)
+    .where(eq(workspacesTable.id, workspaceId))
+    .limit(1);
+  return ws?.userId === userId;
+}
+
+// GET  .../master-charts/:chartId/chat  — last 50 messages
+router.get(
+  "/workspaces/:workspaceId/master-charts/:chartId/chat",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
+
+    const workspaceId = parseInt(String(req.params.workspaceId), 10);
+    const chartId = parseInt(String(req.params.chartId), 10);
+
+    if (!(await verifyChartOwnership(workspaceId, chartId, dbUser.id))) {
+      res.status(404).json({ error: "Chart not found" });
+      return;
+    }
+
+    const messages = await db
+      .select()
+      .from(datasetChatMessagesTable)
+      .where(eq(datasetChatMessagesTable.chartId, chartId))
+      .orderBy(datasetChatMessagesTable.createdAt)
+      .limit(50);
+
+    res.json(
+      messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt.toISOString(),
+        tokensUsed: m.tokensUsed,
+      })),
+    );
+  },
+);
+
+// DELETE .../master-charts/:chartId/chat/clear  — clear history
+router.delete(
+  "/workspaces/:workspaceId/master-charts/:chartId/chat/clear",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
+
+    const workspaceId = parseInt(String(req.params.workspaceId), 10);
+    const chartId = parseInt(String(req.params.chartId), 10);
+
+    if (!(await verifyChartOwnership(workspaceId, chartId, dbUser.id))) {
+      res.status(404).json({ error: "Chart not found" });
+      return;
+    }
+
+    await db
+      .delete(datasetChatMessagesTable)
+      .where(eq(datasetChatMessagesTable.chartId, chartId));
+
+    res.json({ ok: true });
+  },
+);
+
+// POST .../master-charts/:chartId/chat/stream  — SSE agent run
+router.post(
+  "/workspaces/:workspaceId/master-charts/:chartId/chat/stream",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const dbUser = await requireDbUser(req, res);
+    if (!dbUser) return;
+
+    const workspaceId = parseInt(String(req.params.workspaceId), 10);
+    const chartId = parseInt(String(req.params.chartId), 10);
+
+    const body = ChatSendBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: body.error.message });
+      return;
+    }
+
+    if (!(await verifyChartOwnership(workspaceId, chartId, dbUser.id))) {
+      res.status(404).json({ error: "Chart not found" });
+      return;
+    }
+
+    // Persist user message
+    await db.insert(datasetChatMessagesTable).values({
+      workspaceId,
+      chartId,
+      userId: dbUser.id,
+      role: "user",
+      content: body.data.content,
+    });
+
+    // Load history (last 30 messages, skip the one we just inserted)
+    const historyRows = await db
+      .select()
+      .from(datasetChatMessagesTable)
+      .where(eq(datasetChatMessagesTable.chartId, chartId))
+      .orderBy(datasetChatMessagesTable.createdAt)
+      .limit(30);
+
+    const history = historyRows
+      .slice(0, -1)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    // Start SSE stream
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const send = (event: Record<string, unknown>) => {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    let assistantContent = "";
+    let totalTokens = 0;
+
+    try {
+      const result = await runDatasetAgentChat({
+        workspaceId,
+        chartId,
+        userId: dbUser.id,
+        userMessage: body.data.content,
+        history,
+        onEvent: (ev) => {
+          if (ev.type === "token") assistantContent += ev.content;
+          send(ev as unknown as Record<string, unknown>);
+        },
+      });
+      assistantContent = result.assistantContent || assistantContent;
+      totalTokens = result.totalTokens;
+    } catch (err) {
+      logger.error({ err, workspaceId, chartId }, "Dataset agent stream failed");
+      send({ type: "error", message: err instanceof Error ? err.message : "Agent failed" });
+    }
+
+    // Persist assistant reply
+    if (assistantContent.trim()) {
+      await db.insert(datasetChatMessagesTable).values({
+        workspaceId,
+        chartId,
+        userId: dbUser.id,
+        role: "assistant",
+        content: assistantContent || "Done.",
+        tokensUsed: totalTokens,
+      });
+    }
+
+    res.end();
   },
 );
 

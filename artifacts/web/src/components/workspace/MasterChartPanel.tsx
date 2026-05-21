@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/auth";
+import { useDatasetChatStream, type DatasetChatMessage, type DatasetChatStreamEvent } from "@/hooks/useDatasetChatStream";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,7 +59,6 @@ type ChartRow = {
 type LayoutMode = "split" | "fullscreen" | "collapsed";
 
 const GUIDE_DISMISS_KEY = (workspaceId: number) => `dataset-guide-dismissed-${workspaceId}`;
-const CHAT_STORAGE_KEY = (chartId: number) => `master-chart-chat-${chartId}`;
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -122,6 +122,16 @@ export function MasterChartPanel({
   const [deletingVersion, setDeletingVersion] = useState<number | null>(null);
   const [lastPrompt, setLastPrompt] = useState<string | null>(null);
 
+  // Streaming agent hook
+  const {
+    streaming,
+    thinking,
+    toolStatus,
+    liveWorkbook,
+    sendMessage: streamSendMessage,
+    resetStream,
+  } = useDatasetChatStream();
+
   const gated =
     workflowState === "locked_in" ||
     workflowState === "section_build" ||
@@ -142,21 +152,32 @@ export function MasterChartPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [layoutMode]);
 
+  // Load chat history from server when chart changes
   useEffect(() => {
-    if (!selectedId) return;
-    try {
-      const raw = localStorage.getItem(CHAT_STORAGE_KEY(selectedId));
-      if (raw) setMessages(JSON.parse(raw) as ChatMessage[]);
-      else setMessages([]);
-    } catch {
-      setMessages([]);
-    }
+    if (!selectedId) { setMessages([]); return; }
+    void (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(
+          `/api/workspaces/${workspaceId}/master-charts/${selectedId}/chat`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) { setMessages([]); return; }
+        const rows = (await res.json()) as DatasetChatMessage[];
+        setMessages(
+          rows.map((m) => ({
+            id: `srv-${m.id ?? m.createdAt ?? Math.random()}`,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            timestamp: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+          })),
+        );
+      } catch {
+        setMessages([]);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
-
-  useEffect(() => {
-    if (!selectedId || messages.length === 0) return;
-    localStorage.setItem(CHAT_STORAGE_KEY(selectedId), JSON.stringify(messages.slice(-50)));
-  }, [messages, selectedId]);
 
   const authFetch = useCallback(
     async (path: string, init?: RequestInit) => {
@@ -254,9 +275,13 @@ export function MasterChartPanel({
     }
   }, [selectedId, loadDetail]);
 
+  // Use live workbook during streaming, otherwise use version cache
+  const liveSpec = liveWorkbook
+    ? parseSheetSpec(liveWorkbook as unknown as Record<string, unknown>)
+    : null;
   const activePreview =
     versionCache[selectedVersion] ?? versionCache[currentVersion] ?? null;
-  const activeSpec = activePreview?.schemaJson ?? { columns: [], sampleRows: [] };
+  const activeSpec = (streaming && liveSpec) ? liveSpec : (activePreview?.schemaJson ?? { columns: [], sampleRows: [] });
   const workbookSheets = getWorkbookSheets(activeSpec);
   const totalCols = workbookSheets.reduce((n, s) => n + (s.columns?.length ?? 0), 0);
   const totalRows = workbookSheets.reduce((n, s) => n + (s.sampleRows?.length ?? 0), 0);
@@ -315,74 +340,137 @@ export function MasterChartPanel({
   };
 
   const handleGenerate = async (promptText: string) => {
-    if (!selectedId) return;
+    if (!selectedId || busy || streaming) return;
     setLastPrompt(promptText);
-    const userMsg: ChatMessage = { id: uid(), role: "user", content: promptText, timestamp: Date.now() };
+
+    const userMsg: ChatMessage = {
+      id: uid(),
+      role: "user",
+      content: promptText,
+      timestamp: Date.now(),
+    };
     setMessages((m) => [...m, userMsg]);
     setBusy(true);
-    setStatusText("Reading context and thinking…");
+    resetStream();
+
+    // Stream buffer for accumulating assistant tokens
+    let assistantBuffer = "";
+    let assistantMsgId = uid();
+
+    // Add placeholder assistant message
+    setMessages((m) => [
+      ...m,
+      { id: assistantMsgId, role: "assistant", content: "", timestamp: Date.now() },
+    ]);
+
     try {
-      const res = await authFetch(`/master-charts/${selectedId}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: promptText,
-          mode: newMode === "auto_from_methods" ? "auto_from_methods" : "chat_to_excel",
-        }),
-      });
-      if (!res.ok) {
-        const errMsg = await safeErrorMessage(res);
-        throw new Error(errMsg);
-      }
-      const json = await res.json() as {
-        schema: unknown;
-        version: number;
-        vaultResourceId?: number;
-        usedFallback?: boolean;
-        warning?: string;
-      };
-      const spec = parseSheetSpec(json.schema);
-      const prevCols = activeSpec.columns?.map((c) => c.header) ?? [];
-      const newCols = spec.columns?.map((c) => c.header) ?? [];
-      const added = newCols.filter((h) => !prevCols.includes(h));
-      if (added.length) {
-        setHighlightHeaders(added);
-        setTimeout(() => setHighlightHeaders([]), 3000);
-      }
-      const assistantMsg: ChatMessage = {
-        id: uid(),
-        role: "assistant",
-        content: buildAssistantReply(spec, json.version),
-        version: json.version,
-        timestamp: Date.now(),
-      };
-      setMessages((m) => [...m, assistantMsg]);
-      setLastPrompt(null);
-      await loadDetail(selectedId);
-      await loadCharts();
-      toast({
-        title: json.usedFallback ? `Chart v${json.version} (starter template)` : `Chart v${json.version} ready`,
-        description:
-          json.warning ??
-          (json.vaultResourceId ? "Saved to Research Vault." : undefined),
-        variant: json.usedFallback ? "default" : undefined,
-      });
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : "Generate failed";
-      setMessages((m) => [
-        ...m,
-        {
-          id: uid(),
-          role: "assistant",
-          content: `__error__${errorMsg}`,
-          timestamp: Date.now(),
+      await streamSendMessage(
+        workspaceId,
+        selectedId,
+        promptText,
+        getToken,
+        (event: DatasetChatStreamEvent) => {
+          switch (event.type) {
+            case "token":
+              assistantBuffer += event.content;
+              setMessages((m) =>
+                m.map((msg) =>
+                  msg.id === assistantMsgId
+                    ? { ...msg, content: assistantBuffer }
+                    : msg,
+                ),
+              );
+              break;
+
+            case "sheet_updated": {
+              // Live workbook update — reflect immediately in spreadsheet
+              const newSpec = parseSheetSpec(event.workbook as unknown as Record<string, unknown>);
+              const newCols = newSpec.columns?.map((c) => c.header) ?? [];
+              const prevCols = activeSpec.columns?.map((c) => c.header) ?? [];
+              const added = newCols.filter((h) => !prevCols.includes(h));
+              if (added.length) {
+                setHighlightHeaders(added);
+                setTimeout(() => setHighlightHeaders([]), 4000);
+              }
+              // Update live preview in cache under a special key
+              setVersionCache((prev) => ({
+                ...prev,
+                _live: {
+                  version: -1,
+                  schemaJson: newSpec,
+                  statsSummary: undefined,
+                  vaultResourceId: undefined,
+                },
+              }));
+              break;
+            }
+
+            case "version_committed": {
+              const vNum = event.version;
+              setCurrentVersion(vNum);
+              setSelectedVersion(vNum);
+              // Clear live preview
+              setVersionCache((prev) => {
+                const next = { ...prev };
+                delete next["_live" as unknown as number];
+                return next;
+              });
+              void loadDetail(selectedId).then(() => void loadCharts());
+              toast({
+                title: `Chart v${vNum} saved`,
+                description: event.summary || (event.vaultResourceId ? "Saved to Research Vault." : undefined),
+              });
+              // Update the placeholder message with a version badge
+              setMessages((m) =>
+                m.map((msg) =>
+                  msg.id === assistantMsgId
+                    ? { ...msg, version: vNum }
+                    : msg,
+                ),
+              );
+              break;
+            }
+
+            case "error": {
+              const errMsg = event.message;
+              setMessages((m) =>
+                m.map((msg) =>
+                  msg.id === assistantMsgId
+                    ? { ...msg, content: `__error__${errMsg}` }
+                    : msg,
+                ),
+              );
+              toast({ title: "Agent error", description: errMsg, variant: "destructive" });
+              break;
+            }
+
+            case "done": {
+              // If no content accumulated, mark placeholder as done
+              if (!assistantBuffer && !event.content) {
+                setMessages((m) =>
+                  m.map((msg) =>
+                    msg.id === assistantMsgId
+                      ? { ...msg, content: "Done. Check the spreadsheet for any updates." }
+                      : msg,
+                  ),
+                );
+              }
+              setLastPrompt(null);
+              break;
+            }
+          }
         },
-      ]);
-      toast({
-        title: "Generate failed",
-        description: errorMsg,
-        variant: "destructive",
-      });
+      );
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : "Agent failed";
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantMsgId
+            ? { ...msg, content: `__error__${errorMsg}` }
+            : msg,
+        ),
+      );
+      toast({ title: "Generate failed", description: errorMsg, variant: "destructive" });
     } finally {
       setBusy(false);
       setStatusText(undefined);
@@ -599,8 +687,11 @@ export function MasterChartPanel({
   const aiPane = (
     <MasterChartAiAssistant
       messages={messages}
-      busy={busy}
-      statusText={statusText}
+      busy={busy || streaming}
+      statusText={toolStatus ?? statusText}
+      thinking={thinking}
+      toolStatus={toolStatus}
+      streaming={streaming}
       contextFiles={contextFiles}
       lastPrompt={lastPrompt}
       onSend={(text) => void handleGenerate(text)}

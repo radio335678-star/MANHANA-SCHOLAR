@@ -153,7 +153,7 @@ export function AutoCompleteDialog({
             Auto Complete My Entire Thesis
           </DialogTitle>
           <DialogDescription>
-            AI will write all sections sequentially using Kimi K2.6 with research and coherence checks.
+            AI will write all sections sequentially using quaasx-computer with research and coherence checks.
           </DialogDescription>
         </DialogHeader>
 

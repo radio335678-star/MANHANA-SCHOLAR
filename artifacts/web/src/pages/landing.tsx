@@ -173,7 +173,7 @@ const FAQS = [
   },
   {
     q: "Is my thesis data secure?",
-    a: "All thesis content is stored in encrypted PostgreSQL databases. Files in the Research Vault use Replit Object Storage with server-side encryption. Your Kimi API key is never exposed to the browser — all AI calls are proxied server-side.",
+    a: "All thesis content is stored in encrypted PostgreSQL databases. Files in the Research Vault use Replit Object Storage with server-side encryption. AI credentials are never exposed to the browser — all quaasx-computer calls are proxied server-side.",
   },
   {
     q: "Can I export my thesis as PDF?",

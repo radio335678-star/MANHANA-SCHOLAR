@@ -38,6 +38,7 @@ import {
   Zap,
   Trash2,
   Send,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -45,8 +46,14 @@ import { format } from "date-fns";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+/** User-facing AI brand (no third-party model names in UI). */
+const AI_BRAND = "quaasx-computer";
+
 const MAX_FILES = 10;
 const MAX_FILE_SIZE_MB = 25;
+/** Matches api-server visionAgent caps for scanned PDF page images */
+const MAX_PDF_PAGES_PER_FILE = 10;
+const MAX_PDF_VISION_PAGES_TOTAL = 30;
 
 const ALLOWED_EXTS = new Set([
   "pdf", "doc", "docx", "xlsx", "xls", "csv", "ppt", "pptx", "txt",
@@ -54,7 +61,7 @@ const ALLOWED_EXTS = new Set([
 ]);
 
 const READING_STEPS = [
-  "Uploading files to Kimi…",
+  `Uploading files to ${AI_BRAND}…`,
   "Analysing document structure…",
   "Reading all text and tables…",
   "Identifying data, figures and labels…",
@@ -88,6 +95,68 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ── User guide note ───────────────────────────────────────────────────────────
+
+function VisionReaderUserNote() {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="rounded-xl border border-violet-200/70 bg-violet-50/60 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-violet-100/40 transition-colors"
+      >
+        <Info className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+        <span className="text-xs font-medium text-violet-900 flex-1">How Vision Reader works</span>
+        {open ? (
+          <ChevronUp className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+        )}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-0 space-y-2.5 text-[11px] leading-relaxed text-violet-900/90 border-t border-violet-200/50">
+          <p>
+            {AI_BRAND} reads your uploads and writes a <strong>full-detail report</strong> — tables,
+            labels, numbers, and handwritten text. No manual copy-paste from PDFs on your side.
+          </p>
+          <div className="space-y-1">
+            <p className="font-medium text-violet-800">Scanned PDFs (photos saved as PDF)</p>
+            <p>
+              If a PDF is mostly pictures of forms (not selectable text), we turn each page into
+              an image and {AI_BRAND} <strong>looks at every page</strong> like a human would — including
+              handwriting and tables.
+            </p>
+            <p className="text-violet-800/80">
+              For long scans: up to {MAX_PDF_PAGES_PER_FILE} pages per PDF and{" "}
+              {MAX_PDF_VISION_PAGES_TOTAL} vision pages per batch. Split very large files or upload
+              key pages as JPG/PNG for best coverage.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="font-medium text-violet-800">Normal text PDFs &amp; Word/Excel</p>
+            <p>
+              Digital PDFs and office files are read via the {AI_BRAND} document parser first (faster,
+              full document).
+            </p>
+          </div>
+          <ul className="list-disc pl-4 space-y-0.5 text-violet-800/85">
+            <li>
+              Up to {MAX_FILES} files, {MAX_FILE_SIZE_MB} MB each per batch
+            </li>
+            <li>
+              Use <strong>Send to Dataset AI</strong> to build your Excel from the report, or{" "}
+              <strong>Save to Vault</strong> for later
+            </li>
+            <li>Photos (JPG, PNG) go straight to vision — ideal for single scanned sheets</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Thinking animation ────────────────────────────────────────────────────────
@@ -419,7 +488,7 @@ export function VisionReaderPanel({
             <div className="space-y-0.5">
               <p className="text-sm font-medium text-foreground">Drop files here</p>
               <p className="text-xs text-muted-foreground">
-                PDF, DOCX, XLSX, images — scanned PDFs read page-by-page with Kimi vision
+                PDF, DOCX, XLSX, images, scanned forms
               </p>
               <p className="text-[11px] text-muted-foreground/70">
                 Up to {MAX_FILES} files · {MAX_FILE_SIZE_MB} MB each
@@ -427,6 +496,8 @@ export function VisionReaderPanel({
             </div>
           </div>
         </div>
+
+        <VisionReaderUserNote />
 
         {/* File list */}
         {files.length > 0 && (
@@ -499,7 +570,7 @@ export function VisionReaderPanel({
           ) : (
             <>
               <Eye className="w-4 h-4" />
-              Read Files with Kimi
+              Read Files with {AI_BRAND}
             </>
           )}
         </Button>
@@ -622,15 +693,18 @@ export function VisionReaderPanel({
                 </div>
                 <div className="space-y-1.5">
                   <p className="text-sm font-medium text-foreground">
-                    Kimi Vision Reader
+                    {AI_BRAND} Vision Reader
                   </p>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    Upload up to 10 files — PDFs, Excel, images, scanned docs. Kimi will
-                    read and describe everything it sees in full detail.
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    Upload files on the left, then click Read Files with {AI_BRAND}. Scanned PDFs are
+                    read page-by-page with vision; digital PDFs use full-document parsing.
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/80 max-w-sm">
+                    See &ldquo;How Vision Reader works&rdquo; for scanned PDF limits and Dataset AI sync.
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-1.5 max-w-xs">
-                  {["PDF reports", "Scanned docs", "Excel tables", "Lab images", "Charts"].map((tag) => (
+                  {["PDF reports", "Scanned forms", "Excel tables", "Lab images", "Charts"].map((tag) => (
                     <Badge key={tag} variant="secondary" className="text-[10px] h-5">
                       {tag}
                     </Badge>
@@ -650,7 +724,7 @@ export function VisionReaderPanel({
             <span>Session #{lastSessionId}</span>
             <span className="text-border">·</span>
             <Sparkles className="w-3 h-3" />
-            <span>Kimi Vision Read complete</span>
+            <span>{AI_BRAND} read complete</span>
           </div>
         )}
       </div>

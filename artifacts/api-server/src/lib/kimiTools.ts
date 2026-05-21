@@ -4,6 +4,7 @@ import { guidelineSearchCacheTable, eq } from "@workspace/db";
 import { getKimiApiKey } from "./kimiModels";
 import { logger } from "./logger";
 import { createKimiCompletion } from "./kimiModelRouter";
+import { parseModelJson } from "./kimiJsonParse";
 import {
   generateWorkbookSafe,
   workbookToLegacySpec,
@@ -209,18 +210,55 @@ export async function kimiJsonCompletion<T>(
   maxTokens = 8192,
 ): Promise<{ data: T | null; modelUsed?: string }> {
   if (!hasKimiKey()) return { data: null };
+
+  const jsonParams = {
+    messages: [
+      { role: "system" as const, content: systemPrompt },
+      { role: "user" as const, content: userPrompt },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.35,
+    response_format: { type: "json_object" as const },
+    thinking: { type: "disabled" as const },
+  };
+
   try {
-    const { result, modelUsed } = await createKimiCompletion({
+    const { result, modelUsed } = await createKimiCompletion(jsonParams);
+    let data = parseModelJson<T>(result.choices[0]?.message);
+    if (data) return { data, modelUsed };
+
+    const finishReason = result.choices[0]?.finish_reason;
+    logger.warn(
+      { finishReason, modelUsed, contentLen: result.choices[0]?.message?.content?.length ?? 0 },
+      "kimiJsonCompletion empty or unparseable — retrying",
+    );
+
+    const { result: retry, modelUsed: retryModel } = await createKimiCompletion({
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
+        {
+          role: "system",
+          content:
+            "Return ONLY valid JSON matching the user's requested schema. No markdown fences or commentary.",
+        },
+        {
+          role: "user",
+          content: `Previous response was empty or invalid JSON. Return valid JSON for:\n${userPrompt.slice(0, 12_000)}`,
+        },
       ],
       max_tokens: maxTokens,
-      temperature: 0.35,
+      temperature: 0.2,
       response_format: { type: "json_object" },
+      thinking: { type: "disabled" },
     });
-    const raw = result.choices[0]?.message?.content ?? "{}";
-    return { data: JSON.parse(raw) as T, modelUsed };
+
+    data = parseModelJson<T>(retry.choices[0]?.message);
+    if (!data) {
+      logger.warn(
+        { finishReason: retry.choices[0]?.finish_reason, modelUsed: retryModel },
+        "kimiJsonCompletion retry still unparseable",
+      );
+    }
+    return { data, modelUsed: retryModel };
   } catch (err) {
     logger.warn({ err }, "kimiJsonCompletion failed");
     return { data: null };

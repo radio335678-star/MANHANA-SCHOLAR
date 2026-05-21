@@ -23,6 +23,10 @@ import { lockPreThesis, unlockPreThesis } from "../services/lockIn";
 import { isWorkflowState } from "../types/workflow";
 import { extractSynopsisText } from "../lib/synopsisExtract";
 import { buildPreThesisDocxBuffer } from "../services/preThesisDocxBuffer";
+import {
+  PreThesisExportError,
+  preThesisExportHttpStatus,
+} from "../services/preThesisExportError";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -286,6 +290,10 @@ router.get("/workspaces/:id/pre-thesis/export.docx", requireAuth, async (req, re
     );
     res.send(buffer);
   } catch (err) {
+    if (err instanceof PreThesisExportError) {
+      res.status(preThesisExportHttpStatus(err.code)).json({ error: err.message, code: err.code });
+      return;
+    }
     res.status(400).json({
       error: err instanceof Error ? err.message : "No pre-thesis document to export",
     });

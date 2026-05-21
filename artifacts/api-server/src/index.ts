@@ -33,4 +33,10 @@ app.listen(port, (err) => {
       void processPendingPostLockJobs(5).catch(() => undefined);
     }, 60_000);
   });
+
+  void import("./services/preThesisBuildRecovery").then(({ recoverStalePreThesisBuildJobs }) => {
+    void recoverStalePreThesisBuildJobs().catch((err) => {
+      logger.warn({ err }, "Failed to recover stale pre-thesis build jobs");
+    });
+  });
 });

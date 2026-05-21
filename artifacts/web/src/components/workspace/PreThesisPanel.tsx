@@ -268,7 +268,14 @@ export function PreThesisPanel({
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
-      toast({ title: "Export failed", variant: "destructive" });
+      let detail = "Export failed";
+      try {
+        const body = (await res.json()) as { error?: string };
+        if (body.error) detail = body.error;
+      } catch {
+        /* ignore */
+      }
+      toast({ title: detail, variant: "destructive" });
       return;
     }
     const blob = await res.blob();

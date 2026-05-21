@@ -27,6 +27,8 @@ import { cn } from "@/lib/utils";
 import type { ChatMessage, ChartContextFile } from "@/lib/masterChartTypes";
 
 const MAX_CONTEXT_FILES = 3;
+/** Delay before OS file picker so the quaasx-vision-reader tip is readable */
+const ATTACH_PICKER_DELAY_MS = 2000;
 
 const SUGGESTED_PROMPTS = [
   "80 patients: age, sex, group A/B, pre/post outcome scores",
@@ -180,8 +182,10 @@ export function MasterChartAiAssistant({
 }: MasterChartAiAssistantProps) {
   const [input, setInput] = useState("");
   const [uploadingContext, setUploadingContext] = useState(false);
+  const [attachPickerPending, setAttachPickerPending] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const attachPickerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -200,6 +204,24 @@ export function MasterChartAiAssistant({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy, statusText, thinking, streaming, toolStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (attachPickerTimerRef.current) clearTimeout(attachPickerTimerRef.current);
+    };
+  }, []);
+
+  const handleAttachButtonClick = useCallback(() => {
+    if (slotsLeft <= 0 || attachPickerPending) return;
+    onAttachClick?.();
+    setAttachPickerPending(true);
+    if (attachPickerTimerRef.current) clearTimeout(attachPickerTimerRef.current);
+    attachPickerTimerRef.current = setTimeout(() => {
+      attachPickerTimerRef.current = null;
+      setAttachPickerPending(false);
+      fileRef.current?.click();
+    }, ATTACH_PICKER_DELAY_MS);
+  }, [slotsLeft, attachPickerPending, onAttachClick]);
 
   // Auto-grow textarea
   useEffect(() => {
@@ -492,29 +514,34 @@ export function MasterChartAiAssistant({
               />
               <button
                 type="button"
-                disabled={busy || streaming || uploadingContext || slotsLeft <= 0}
-                onClick={() => {
-                  if (slotsLeft > 0) onAttachClick?.();
-                  fileRef.current?.click();
-                }}
+                disabled={busy || streaming || uploadingContext || attachPickerPending || slotsLeft <= 0}
+                onClick={() => void handleAttachButtonClick()}
                 className={cn(
                   "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg transition-colors",
-                  slotsLeft <= 0
+                  slotsLeft <= 0 || attachPickerPending
                     ? "text-muted-foreground/40 cursor-not-allowed"
                     : "text-muted-foreground hover:text-primary hover:bg-primary/10",
                 )}
-                title={slotsLeft <= 0 ? "Maximum 3 files — remove one to add another" : "Attach files (PDF, image, DOCX, Excel) — max 3 per batch"}
+                title={
+                  slotsLeft <= 0
+                    ? "Maximum 3 files — remove one to add another"
+                    : attachPickerPending
+                      ? "Opening file picker…"
+                      : "Attach files (PDF, image, DOCX, Excel) — max 3 per batch"
+                }
               >
-                {uploadingContext ? (
+                {uploadingContext || attachPickerPending ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
                   <Paperclip className="w-3.5 h-3.5" />
                 )}
                 {uploadingContext
                   ? "Processing…"
-                  : contextFiles.length > 0
-                    ? `${contextFiles.length}/${MAX_CONTEXT_FILES}`
-                    : "Attach"}
+                  : attachPickerPending
+                    ? "Wait…"
+                    : contextFiles.length > 0
+                      ? `${contextFiles.length}/${MAX_CONTEXT_FILES}`
+                      : "Attach"}
               </button>
               {visionCount > 0 && (
                 <span className="text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-0.5 ml-0.5">

@@ -62,6 +62,7 @@ async function loadChartContextText(chartId: number): Promise<string> {
   if (files.length === 0) return "";
 
   return files
+    .filter((f) => !f.extractedText?.startsWith("[VISION_FILE:"))
     .map((f) => `--- ${f.filename} ---\n${f.extractedText ?? ""}`)
     .join("\n\n")
     .slice(0, 120_000);
@@ -121,6 +122,40 @@ export async function createMasterChart(
   return chart!;
 }
 
+/**
+ * Returns true when a file should be handled with vision-first strategy:
+ * - All image files (user attaches a scanned photo, a chart screenshot, etc.)
+ * - PDFs that appear scanned (detected after extraction attempt, < 300 chars usable text)
+ *
+ * Vision files are stored raw in Supabase Storage so the agent can pass them
+ * directly as image_url to Kimi — no lossy OCR step in the middle.
+ */
+function isImageMime(mimeType: string, filename: string): boolean {
+  return (
+    mimeType.startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(filename)
+  );
+}
+
+function contextFilePath(chartId: number, filename: string): string {
+  const ts = Date.now();
+  const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+  return `context/${chartId}/${ts}-${safe}`;
+}
+
+/** Upload raw buffer to Supabase Storage and return the storage path, or null. */
+async function storeContextFileRaw(
+  chartId: number,
+  buffer: Buffer,
+  filename: string,
+  mimeType: string,
+): Promise<string | null> {
+  if (!isStorageConfigured()) return null;
+  const path = contextFilePath(chartId, filename);
+  await uploadBuffer(path, buffer, mimeType || "application/octet-stream");
+  return path;
+}
+
 export async function uploadChartContextFile(
   workspaceId: number,
   chartId: number,
@@ -144,19 +179,40 @@ export async function uploadChartContextFile(
     throw new Error("Maximum 20 context files per dataset. Remove a file before uploading more.");
   }
 
-  let extractedText = await extractDatasetContextText(
-    file.buffer,
-    file.mimetype,
-    file.originalname,
-  );
-  if (
-    (!extractedText.trim() || extractedText.includes("extraction failed")) &&
-    getKimiApiKey()
-  ) {
-    extractedText = await extractDatasetContextText(file.buffer, file.mimetype, file.originalname);
-  }
-  if (!extractedText.trim()) {
-    extractedText = `[Uploaded: ${file.originalname} — text could not be extracted; describe this file in chat and regenerate.]`;
+  let extractedText: string;
+  let storagePath: string | null = null;
+
+  if (isImageMime(file.mimetype, file.originalname)) {
+    // ── Vision-first: images are passed directly to Kimi at inference time ──
+    storagePath = await storeContextFileRaw(chartId, file.buffer, file.originalname, file.mimetype);
+    extractedText = `[VISION_FILE: ${file.originalname}]`;
+    logger.info({ chartId, filename: file.originalname }, "Context file stored as vision (image)");
+  } else {
+    // ── Text-first: attempt extraction for PDFs, DOCX, XLSX, etc. ──
+    extractedText = await extractDatasetContextText(
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+    );
+
+    const usableChars = extractedText
+      .replace(/\[.*?\]/g, "")
+      .replace(/extraction failed/gi, "")
+      .trim().length;
+
+    const isPoorExtraction =
+      usableChars < 300 ||
+      extractedText.includes("extraction failed") ||
+      extractedText.includes("set KIMI_API_KEY");
+
+    if (isPoorExtraction && (file.mimetype.includes("pdf") || /\.pdf$/i.test(file.originalname))) {
+      // Scanned PDF — switch to vision path
+      storagePath = await storeContextFileRaw(chartId, file.buffer, file.originalname, "application/pdf");
+      extractedText = `[VISION_FILE: ${file.originalname}]`;
+      logger.info({ chartId, filename: file.originalname, usableChars }, "Context PDF stored as vision (scanned)");
+    } else if (!extractedText.trim() || isPoorExtraction) {
+      extractedText = `[Uploaded: ${file.originalname} — text could not be extracted; describe this file in chat and regenerate.]`;
+    }
   }
 
   let vaultResourceId: number | undefined;
@@ -179,6 +235,7 @@ export async function uploadChartContextFile(
       filename: file.originalname,
       mimeType: file.mimetype,
       extractedText,
+      storagePath: storagePath ?? null,
       vaultResourceId: vaultResourceId ?? null,
     })
     .returning();

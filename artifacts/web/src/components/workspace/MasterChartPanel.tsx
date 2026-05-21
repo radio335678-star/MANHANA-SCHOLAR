@@ -339,6 +339,41 @@ export function MasterChartPanel({
     }
   };
 
+  /** Quick-create a new dataset with an auto-generated name — no form needed. */
+  const handleQuickCreate = async () => {
+    if (busy || streaming) return;
+    setBusy(true);
+    try {
+      const autoName = `Dataset ${charts.length + 1}`;
+      const res = await authFetch("/master-charts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: autoName, mode: "chat_to_excel" }),
+      });
+      if (!res.ok) throw new Error("Create failed");
+      const chart = (await res.json()) as ChartRow;
+      await loadCharts();
+      setSelectedId(chart.id);
+      setMessages([]);
+      resetStream();
+      setAiCollapsed(false);
+      setLayoutMode("split");
+      toast({ title: `Created "${autoName}"`, description: "Start typing to build your master chart." });
+    } catch {
+      toast({ title: "Create failed", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Clear the current chat conversation without switching datasets. */
+  const handleNewChat = () => {
+    if (busy || streaming) return;
+    setMessages([]);
+    setLastPrompt(null);
+    resetStream();
+  };
+
   const handleGenerate = async (promptText: string) => {
     if (!selectedId || busy || streaming) return;
     setLastPrompt(promptText);
@@ -699,6 +734,7 @@ export function MasterChartPanel({
       onContextUpload={handleContextUpload}
       onContextDelete={handleContextDelete}
       onExpand={() => setLayoutMode("fullscreen")}
+      onNewChat={handleNewChat}
       layoutCollapsed={aiCollapsed}
       onLayoutCollapsedChange={setAiCollapsed}
       className="h-full"
@@ -806,21 +842,39 @@ export function MasterChartPanel({
       </div>
 
       {charts.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {charts.map((c) => (
             <Button
               key={c.id}
               variant={selectedId === c.id ? "default" : "outline"}
               size="sm"
+              className={cn(
+                "gap-1.5 h-8 text-xs",
+                selectedId === c.id && "shadow-sm",
+              )}
               onClick={() => setSelectedId(c.id)}
             >
-              <Table2 className="w-3.5 h-3.5 mr-1" />
-              {c.name}
-              <Badge variant="secondary" className="ml-2 text-xs">
+              <Table2 className="w-3 h-3" />
+              <span className="max-w-[120px] truncate">{c.name}</span>
+              <Badge
+                variant={selectedId === c.id ? "secondary" : "outline"}
+                className="text-[10px] h-4 px-1 ml-0.5"
+              >
                 v{c.currentVersion}
               </Badge>
             </Button>
           ))}
+          {/* Quick-create new dataset */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0 rounded-lg border-dashed hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors"
+            onClick={() => void handleQuickCreate()}
+            disabled={busy || streaming}
+            title="New dataset"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
         </div>
       )}
 

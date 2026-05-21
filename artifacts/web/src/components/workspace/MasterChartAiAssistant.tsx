@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,6 +20,8 @@ import {
   Brain,
   Wrench,
   CheckCircle2,
+  Plus,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChartContextFile } from "@/lib/masterChartTypes";
@@ -47,8 +48,8 @@ const THINKING_STEPS = [
   "Finalising master chart…",
 ];
 
-function fileIcon(filename: string) {
-  if (/\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(filename))
+function fileIcon(filename: string, isVision?: boolean) {
+  if (isVision || /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(filename))
     return <ImageIcon className="w-3 h-3 shrink-0 text-violet-500" />;
   if (/\.(xlsx?|csv)$/i.test(filename))
     return <FileSpreadsheet className="w-3 h-3 shrink-0 text-emerald-500" />;
@@ -57,18 +58,19 @@ function fileIcon(filename: string) {
   return <FileText className="w-3 h-3 shrink-0 text-blue-500" />;
 }
 
+function isVisionFile(f: ChartContextFile) {
+  return f.extractedText?.startsWith("[VISION_FILE:") ?? false;
+}
+
 function ThinkingAnimation({ statusText, thinkingContent }: { statusText?: string; thinkingContent?: string }) {
   const [stepIdx, setStepIdx] = useState(0);
-
   useEffect(() => {
-    const timer = setInterval(() => {
-      setStepIdx((i) => (i + 1) % THINKING_STEPS.length);
-    }, 2200);
+    const timer = setInterval(() => setStepIdx((i) => (i + 1) % THINKING_STEPS.length), 2200);
     return () => clearInterval(timer);
   }, []);
 
   return (
-    <div className="mr-auto bg-secondary rounded-lg px-3 py-2.5 max-w-[95%] space-y-1.5">
+    <div className="mr-auto bg-secondary/60 rounded-2xl px-3.5 py-2.5 max-w-[90%] space-y-1.5 border border-border/40">
       <div className="flex items-center gap-2 text-xs text-primary">
         <Loader2 className="w-3 h-3 animate-spin shrink-0" />
         <span className="animate-in fade-in slide-in-from-left-1 duration-300">
@@ -84,7 +86,7 @@ function ThinkingAnimation({ statusText, thinkingContent }: { statusText?: strin
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce"
+            className="w-1.5 h-1.5 rounded-full bg-primary/50 animate-bounce"
             style={{ animationDelay: `${i * 0.18}s` }}
           />
         ))}
@@ -97,8 +99,11 @@ type ToolPillProps = { tool: string; message: string; ok?: boolean; active?: boo
 function ToolPill({ tool, message, ok, active }: ToolPillProps) {
   const toolLabel: Record<string, string> = {
     read_sheet_state: "Reading schema",
+    read_full_context: "Reading context",
     read_context_bundle: "Loading context",
     apply_sheet_patch: "Patching sheet",
+    generate_sample_rows: "Generating rows",
+    add_formula_column: "Adding formula col",
     validate_sheet: "Validating",
     commit_version: "Saving version",
     rethink: "Planning",
@@ -107,9 +112,11 @@ function ToolPill({ tool, message, ok, active }: ToolPillProps) {
   return (
     <div className={cn(
       "inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full border font-medium",
-      active ? "bg-primary/10 border-primary/30 text-primary animate-pulse" :
-      ok === false ? "bg-destructive/10 border-destructive/20 text-destructive" :
-      "bg-green-50 border-green-200 text-green-700",
+      active
+        ? "bg-primary/10 border-primary/30 text-primary animate-pulse"
+        : ok === false
+          ? "bg-destructive/10 border-destructive/20 text-destructive"
+          : "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-400",
     )}>
       {active ? (
         <Wrench className="w-2.5 h-2.5 animate-spin" />
@@ -137,6 +144,7 @@ type MasterChartAiAssistantProps = {
   onContextUpload: (files: File[]) => Promise<void>;
   onContextDelete?: (fileId: number) => Promise<void>;
   onExpand?: () => void;
+  onNewChat?: () => void;
   layoutCollapsed: boolean;
   onLayoutCollapsedChange: (collapsed: boolean) => void;
   className?: string;
@@ -156,18 +164,21 @@ export function MasterChartAiAssistant({
   onContextUpload,
   onContextDelete,
   onExpand,
+  onNewChat,
   layoutCollapsed,
   onLayoutCollapsedChange,
   className,
 }: MasterChartAiAssistantProps) {
   const [input, setInput] = useState("");
-  const [contextOpen, setContextOpen] = useState(true);
   const [uploadingContext, setUploadingContext] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const slotsLeft = MAX_CONTEXT_FILES - contextFiles.length;
+  const visionCount = contextFiles.filter(isVisionFile).length;
+  const textFileCount = contextFiles.length - visionCount;
 
   const lastErrorMsg = (() => {
     const last = messages[messages.length - 1];
@@ -181,10 +192,19 @@ export function MasterChartAiAssistant({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy, statusText]);
 
+  // Auto-grow textarea
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+  }, [input]);
+
   const handleSend = () => {
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     onSend(text);
   };
 
@@ -205,11 +225,7 @@ export function MasterChartAiAssistant({
   if (layoutCollapsed) {
     return (
       <div className={cn("border rounded-xl bg-card p-3", className)}>
-        <Button
-          variant="outline"
-          className="w-full gap-2"
-          onClick={() => onLayoutCollapsedChange(false)}
-        >
+        <Button variant="outline" className="w-full gap-2" onClick={() => onLayoutCollapsedChange(false)}>
           <Sparkles className="w-4 h-4" />
           Open AI Dataset Builder
           <ChevronUp className="w-4 h-4 ml-auto" />
@@ -219,30 +235,51 @@ export function MasterChartAiAssistant({
   }
 
   return (
-    <div className={cn("flex flex-col border rounded-xl bg-card h-full min-h-[400px]", className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0">
-        <div className="flex items-center gap-2">
+    <div
+      className={cn("flex flex-col bg-card h-full min-h-[400px] rounded-xl border border-border/60 overflow-hidden", className)}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
+      }}
+    >
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-border/50 bg-card/80 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
           {streaming ? (
-            <Brain className="w-4 h-4 text-primary animate-pulse" />
+            <Brain className="w-4 h-4 text-primary animate-pulse shrink-0" />
           ) : (
-            <Sparkles className="w-4 h-4 text-primary" />
+            <Sparkles className="w-4 h-4 text-primary shrink-0" />
           )}
-          <span className="font-medium text-sm">AI Dataset Builder</span>
+          <span className="font-semibold text-sm truncate">AI Dataset Builder</span>
           {streaming && (
-            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20">
+            <Badge className="text-[10px] h-4 px-1.5 bg-primary/15 text-primary border-primary/25 shrink-0">
               Agent active
             </Badge>
           )}
           {!streaming && contextFiles.length > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-              {contextFiles.length} file{contextFiles.length > 1 ? "s" : ""} in context
+            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 shrink-0">
+              {contextFiles.length} file{contextFiles.length !== 1 ? "s" : ""}
             </Badge>
           )}
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-0.5 shrink-0">
+          {onNewChat && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg hover:bg-primary/10 hover:text-primary"
+              onClick={onNewChat}
+              title="New chat"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          )}
           {onExpand && (
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onExpand} title="Fullscreen">
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={onExpand} title="Fullscreen">
               <Maximize2 className="w-3.5 h-3.5" />
             </Button>
           )}
@@ -250,44 +287,46 @@ export function MasterChartAiAssistant({
             type="button"
             variant="ghost"
             size="sm"
-            className="gap-1 h-8"
+            className="gap-1 h-7 text-xs px-2 rounded-lg"
             onClick={() => onLayoutCollapsedChange(true)}
           >
             Collapse
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="w-3 h-3" />
           </Button>
         </div>
       </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 px-4">
-        <div className="space-y-3 py-4 text-sm min-h-[120px]">
+      {/* ── Messages ── */}
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="space-y-2.5 px-3 py-4 text-sm">
           {messages.length === 0 && !busy && (
             <div className="space-y-4">
-              {/* Step guide */}
               <div className="grid grid-cols-3 gap-2 text-center">
                 {[
                   { step: "1", label: "Upload context", sub: "PDFs, images, DOCX" },
                   { step: "2", label: "Describe chart", sub: "columns, rows, groups" },
                   { step: "3", label: "AI builds it", sub: "download XLSX / CSV" },
                 ].map((s) => (
-                  <div key={s.step} className="rounded-lg border bg-muted/30 p-2 space-y-0.5">
-                    <div className="text-xs font-semibold text-primary">{s.step}</div>
+                  <div key={s.step} className="rounded-xl border bg-muted/20 p-2.5 space-y-0.5">
+                    <div className="text-xs font-bold text-primary">{s.step}</div>
                     <div className="text-xs font-medium">{s.label}</div>
                     <div className="text-[10px] text-muted-foreground">{s.sub}</div>
                   </div>
                 ))}
               </div>
-              <p className="text-muted-foreground text-center px-2 text-xs leading-relaxed">
-                AI reads every uploaded file before building. Each message creates a new versioned chart.
+              <p className="text-muted-foreground text-center px-2 text-[11px] leading-relaxed">
+                AI reads every uploaded file before building. Scanned images and PDFs are read visually — no OCR needed.
               </p>
-              <div className="flex flex-wrap gap-1.5 justify-center">
+              <div className="flex flex-wrap gap-1.5">
                 {SUGGESTED_PROMPTS.map((p) => (
                   <button
                     key={p}
                     type="button"
-                    className="text-xs px-2.5 py-1.5 rounded-full border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/30 transition-colors text-left"
-                    onClick={() => setInput(p)}
+                    className="text-[11px] px-2.5 py-1.5 rounded-full border border-border bg-muted/30 hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors text-left"
+                    onClick={() => {
+                      setInput(p);
+                      textareaRef.current?.focus();
+                    }}
                   >
                     {p}
                   </button>
@@ -295,6 +334,7 @@ export function MasterChartAiAssistant({
               </div>
             </div>
           )}
+
           {messages.map((m) => {
             const isError = m.role === "assistant" && m.content.startsWith("__error__");
             const displayContent = isError ? m.content.slice("__error__".length) : m.content;
@@ -302,15 +342,15 @@ export function MasterChartAiAssistant({
               <div
                 key={m.id}
                 className={cn(
-                  "rounded-lg px-3 py-2 max-w-[95%]",
+                  "rounded-2xl px-3.5 py-2.5 max-w-[90%] text-xs leading-relaxed",
                   m.role === "user"
-                    ? "ml-auto bg-primary text-primary-foreground"
+                    ? "ml-auto bg-primary text-primary-foreground rounded-br-md"
                     : isError
-                      ? "mr-auto bg-destructive/10 border border-destructive/20 text-destructive"
-                      : "mr-auto bg-secondary text-foreground",
+                      ? "mr-auto bg-destructive/8 border border-destructive/20 text-destructive rounded-bl-md"
+                      : "mr-auto bg-secondary/70 text-foreground rounded-bl-md border border-border/30",
                 )}
               >
-                <p className="whitespace-pre-wrap text-xs leading-relaxed">{displayContent}</p>
+                <p className="whitespace-pre-wrap">{displayContent}</p>
                 {isError && onRetry && (
                   <Button
                     size="sm"
@@ -323,27 +363,23 @@ export function MasterChartAiAssistant({
                   </Button>
                 )}
                 {m.version != null && m.role === "assistant" && !isError && (
-                  <Badge variant="outline" className="mt-2 text-[10px]">
-                    v{m.version}
-                  </Badge>
+                  <Badge variant="outline" className="mt-2 text-[10px]">v{m.version}</Badge>
                 )}
               </div>
             );
           })}
-          {/* Tool status pills during streaming */}
+
           {streaming && toolStatus && (
             <div className="mr-auto">
               <ToolPill tool="" message={toolStatus} active={true} />
             </div>
           )}
-          {/* Thinking or idle spinner */}
           {busy && !streaming && <ThinkingAnimation statusText={statusText} thinkingContent={thinking} />}
           {streaming && !toolStatus && (
             <ThinkingAnimation statusText={statusText ?? "Agent working…"} thinkingContent={thinking} />
           )}
-          {/* Retry hint outside messages when last action failed */}
           {!busy && !streaming && lastErrorMsg && lastPrompt && onRetry && messages.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
               <RefreshCw className="w-3 h-3 shrink-0" />
               <span>Generation failed. Edit your prompt or try again.</span>
             </div>
@@ -352,119 +388,65 @@ export function MasterChartAiAssistant({
         </div>
       </ScrollArea>
 
-      {/* Context + Input */}
-      <div className="border-t shrink-0">
-        {/* Context file section */}
-        <button
-          type="button"
-          className="w-full flex items-center justify-between px-4 py-2 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
-          onClick={() => setContextOpen((o) => !o)}
-        >
-          <span className="flex items-center gap-1.5">
-            <Paperclip className="w-3 h-3" />
-            Context files
-            <span className={cn(
-              "px-1.5 py-0.5 rounded-full text-[10px] font-medium",
-              contextFiles.length > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-            )}>
-              {contextFiles.length}/{MAX_CONTEXT_FILES}
-            </span>
-          </span>
-          {contextOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        </button>
+      {/* ── Input area ── */}
+      <div className="shrink-0 p-2.5 pt-2 border-t border-border/40 space-y-1.5">
 
-        {contextOpen && (
-          <div
-            className={cn(
-              "px-4 pb-3 space-y-2 transition-colors",
-              dragOver && "bg-primary/5 border-primary/20",
-            )}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
-            }}
-          >
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif,.bmp,.xlsx,.xls,.csv,image/*,application/pdf"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files?.length) void handleFiles(e.target.files);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "w-full gap-2 text-xs border-dashed",
-                dragOver && "border-primary bg-primary/5",
-              )}
-              disabled={busy || streaming || uploadingContext || slotsLeft <= 0}
-              onClick={() => fileRef.current?.click()}
-            >
-              {uploadingContext ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Extracting text…
-                </>
-              ) : (
-                <>
-                  <Paperclip className="w-3.5 h-3.5" />
-                  {slotsLeft <= 0
-                    ? "Maximum 20 files reached"
-                    : dragOver
-                      ? "Drop to upload"
-                      : `Upload PDF, DOC, image, Excel — ${slotsLeft} slot${slotsLeft !== 1 ? "s" : ""} left`}
-                </>
-              )}
-            </Button>
-            {contextFiles.length > 0 && (
-              <ul className="space-y-1 max-h-32 overflow-y-auto">
-                {contextFiles.map((f) => (
-                  <li
-                    key={f.id}
-                    className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md px-2 py-1"
-                  >
-                    {fileIcon(f.filename)}
-                    <span className="truncate flex-1 font-medium text-foreground/80">{f.filename}</span>
-                    {f.extractedText && (
-                      <Badge variant="outline" className="text-[9px] h-3.5 px-1 shrink-0 text-green-700 border-green-200">
-                        extracted
-                      </Badge>
-                    )}
-                    {onContextDelete && (
-                      <button
-                        type="button"
-                        className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-                        title="Remove file"
-                        onClick={() => void onContextDelete(f.id)}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+        {/* File chips — shown only when files are attached */}
+        {contextFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1 max-h-14 overflow-y-auto px-0.5">
+            {contextFiles.map((f) => {
+              const vision = isVisionFile(f);
+              return (
+                <div
+                  key={f.id}
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border max-w-[140px] group",
+                    vision
+                      ? "bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-950/30 dark:border-violet-900/40 dark:text-violet-400"
+                      : "bg-muted/50 border-border text-foreground/70",
+                  )}
+                  title={vision ? `${f.filename} — will be read visually by AI` : f.filename}
+                >
+                  {vision ? <Eye className="w-2.5 h-2.5 shrink-0" /> : fileIcon(f.filename)}
+                  <span className="truncate">{f.filename}</span>
+                  {onContextDelete && (
+                    <button
+                      type="button"
+                      className="shrink-0 text-current opacity-50 hover:opacity-100 hover:text-destructive transition-opacity ml-0.5"
+                      onClick={() => void onContextDelete(f.id)}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* Prompt input */}
-        <div className="p-3 pt-0 space-y-2 border-t">
-          <Textarea
+        {/* Drag-over overlay hint */}
+        {dragOver && (
+          <div className="absolute inset-x-2.5 bottom-2.5 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 flex items-center justify-center h-16 pointer-events-none z-10">
+            <p className="text-xs text-primary font-medium flex items-center gap-1.5">
+              <Paperclip className="w-3.5 h-3.5" /> Drop files to attach
+            </p>
+          </div>
+        )}
+
+        {/* Input container with inline paperclip */}
+        <div className={cn(
+          "relative rounded-xl border bg-background transition-all duration-150",
+          dragOver
+            ? "border-primary/50 ring-2 ring-primary/20"
+            : "border-border/60 ring-1 ring-transparent focus-within:ring-primary/30 focus-within:border-primary/40",
+        )}>
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Describe columns, edits, or ask to remove rows/columns…"
-            rows={2}
             disabled={busy || streaming}
-            className="text-sm resize-none"
+            className="w-full resize-none bg-transparent text-sm px-3 pt-2.5 pb-10 min-h-[72px] max-h-[160px] outline-none placeholder:text-muted-foreground/60 leading-relaxed"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -472,24 +454,92 @@ export function MasterChartAiAssistant({
               }
             }}
           />
-          <div className="flex gap-2">
-            <Button className="flex-1 gap-2" disabled={busy || streaming || !input.trim()} onClick={handleSend}>
-              {(busy || streaming) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {streaming ? "Agent running…" : busy ? "Building…" : "Send"}
-            </Button>
-            {onRetry && !busy && !streaming && lastErrorMsg && (
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                onClick={onRetry}
-                title="Retry last prompt"
+
+          {/* Bottom toolbar inside textarea */}
+          <div className="absolute bottom-0 inset-x-0 flex items-center justify-between px-2 py-1.5 border-t border-border/30 bg-muted/20 rounded-b-xl">
+            <div className="flex items-center gap-1">
+              {/* Hidden file input */}
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.gif,.bmp,.xlsx,.xls,.csv,image/*,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.length) void handleFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                disabled={busy || streaming || uploadingContext || slotsLeft <= 0}
+                onClick={() => fileRef.current?.click()}
+                className={cn(
+                  "flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg transition-colors",
+                  slotsLeft <= 0
+                    ? "text-muted-foreground/40 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-primary hover:bg-primary/10",
+                )}
+                title={slotsLeft <= 0 ? "Maximum 20 files" : "Attach files (PDF, image, DOCX, Excel)"}
               >
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            )}
+                {uploadingContext ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Paperclip className="w-3.5 h-3.5" />
+                )}
+                {uploadingContext
+                  ? "Processing…"
+                  : contextFiles.length > 0
+                    ? `${contextFiles.length}/${MAX_CONTEXT_FILES}`
+                    : "Attach"}
+              </button>
+              {visionCount > 0 && (
+                <span className="text-[10px] text-violet-600 dark:text-violet-400 flex items-center gap-0.5 ml-0.5">
+                  <Eye className="w-2.5 h-2.5" />
+                  {visionCount} vision
+                </span>
+              )}
+              {textFileCount > 0 && visionCount === 0 && (
+                <span className="text-[10px] text-muted-foreground/60 ml-0.5">
+                  {textFileCount} text
+                </span>
+              )}
+            </div>
+
+            {/* Send button */}
+            <Button
+              size="sm"
+              className={cn(
+                "h-7 gap-1.5 rounded-lg text-xs font-medium transition-all",
+                input.trim() && !busy && !streaming
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90 px-3"
+                  : "px-2",
+              )}
+              disabled={busy || streaming || !input.trim()}
+              onClick={handleSend}
+            >
+              {busy || streaming ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              {streaming ? "Running…" : busy ? "Building…" : input.trim() ? "Send" : ""}
+            </Button>
           </div>
         </div>
+
+        {/* Retry hint */}
+        {onRetry && !busy && !streaming && lastErrorMsg && lastPrompt && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full h-7 gap-1.5 text-[11px] border-destructive/20 text-destructive hover:bg-destructive/5"
+            onClick={onRetry}
+          >
+            <RefreshCw className="w-3 h-3" />
+            Retry last prompt
+          </Button>
+        )}
       </div>
     </div>
   );

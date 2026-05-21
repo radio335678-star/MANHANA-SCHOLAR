@@ -110,10 +110,35 @@ export async function loadChartContextFilesText(chartId: number): Promise<string
 
   if (files.length === 0) return "";
 
+  // Vision files are injected directly as images by the agent — exclude their markers here
   return files
+    .filter((f) => !f.extractedText?.startsWith("[VISION_FILE:"))
     .map((f) => `--- ${f.filename} ---\n${f.extractedText ?? ""}`)
     .join("\n\n")
     .slice(0, MAX_CHART_CONTEXT);
+}
+
+/** Load context files that should be handled vision-first (images / scanned PDFs). */
+export async function loadChartVisionFiles(chartId: number): Promise<
+  Array<{ id: number; filename: string; mimeType: string | null; storagePath: string }>
+> {
+  const files = await db
+    .select({
+      id: masterChartContextFilesTable.id,
+      filename: masterChartContextFilesTable.filename,
+      mimeType: masterChartContextFilesTable.mimeType,
+      storagePath: masterChartContextFilesTable.storagePath,
+      extractedText: masterChartContextFilesTable.extractedText,
+    })
+    .from(masterChartContextFilesTable)
+    .where(eq(masterChartContextFilesTable.chartId, chartId))
+    .orderBy(masterChartContextFilesTable.createdAt)
+    .limit(20);
+
+  return files.filter(
+    (f): f is typeof f & { storagePath: string } =>
+      Boolean(f.storagePath) && Boolean(f.extractedText?.startsWith("[VISION_FILE:")),
+  );
 }
 
 /**

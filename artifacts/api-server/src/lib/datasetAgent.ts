@@ -28,12 +28,13 @@ import {
   type DatasetAgentPromptContext,
 } from "./datasetAgentPrompt";
 import { applySheetPatch, validateWorkbook, workbookSummary } from "./datasetPatch";
-import { loadDatasetAgentContext } from "./datasetContext";
+import { loadDatasetAgentContext, loadChartVisionFiles } from "./datasetContext";
 import { buildXlsxFromSpec, computeBasicStats } from "./excelBuilder";
 import {
   uploadBuffer,
   masterChartPath,
   isStorageConfigured,
+  createSignedDownloadUrl,
 } from "./supabaseStorage";
 import { saveArtifactToVault } from "./vaultArtifact";
 import type { WorkbookSpec } from "./sheetGeneration";
@@ -261,27 +262,75 @@ export async function runDatasetAgentChat(params: {
   }
 
   // ── 2. Load ALL context in parallel ────────────────────────────────────────
-  const [ctx, workingWorkbookInit] = await Promise.all([
+  const [ctx, workingWorkbookInit, visionFiles] = await Promise.all([
     loadDatasetAgentContext(workspaceId, chartId),
     loadWorkingWorkbook(chartId),
+    loadChartVisionFiles(chartId),
   ]);
 
   let workingWorkbook: WorkbookSpec | null = workingWorkbookInit;
   let versionCommitted = false;
 
   // ── 3. Build rich system prompt with full context embedded ─────────────────
+  const visionFileCount = visionFiles.length;
   const promptCtx: DatasetAgentPromptContext = {
     chartName: chart.name,
     chartMode: chart.mode,
     workbook: workingWorkbook,
-    ctx,
+    ctx: {
+      ...ctx,
+      // Augment uploads flag to reflect vision files too
+      hasUploads: ctx.hasUploads || visionFileCount > 0,
+    },
   };
 
   const systemPrompt = buildDatasetAgentSystemPrompt(promptCtx);
   const tools = buildDatasetAgentTools();
 
+  // ── 4. Resolve signed URLs for vision files and inject a vision pre-turn ──
+  type KimiImageContent = { type: "image_url"; image_url: { url: string } };
+  type KimiTextContent = { type: "text"; text: string };
+
+  const visionPreTurn: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+
+  if (visionFileCount > 0 && isStorageConfigured()) {
+    const imageContents: Array<KimiImageContent | KimiTextContent> = [];
+
+    for (const vf of visionFiles) {
+      try {
+        const signedUrl = await createSignedDownloadUrl(vf.storagePath, 3600, "artifacts");
+        if (signedUrl) {
+          imageContents.push({ type: "image_url", image_url: { url: signedUrl } });
+        }
+      } catch (err) {
+        logger.warn({ err, filename: vf.filename }, "Vision file signed URL failed, skipping");
+      }
+    }
+
+    if (imageContents.length > 0) {
+      imageContents.push({
+        type: "text",
+        text: `The ${imageContents.length} image(s) above are context files uploaded by the researcher for this study. They may be scanned data collection forms, proformas, observation charts, or reference images. Read them carefully — extract column names, data categories, measurement units, and study parameters visible in the images. Use this information to build the Excel master chart.`,
+      });
+
+      visionPreTurn.push(
+        {
+          role: "user",
+          content: imageContents as OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        },
+        {
+          role: "assistant",
+          content: `I have reviewed all ${imageContents.length - 1} uploaded context image(s). I can see the study data structure, column definitions, and measurement parameters. I'm ready to build the Excel master chart based on this information.`,
+        },
+      );
+
+      logger.info({ chartId, visionCount: imageContents.length - 1 }, "Vision files injected into agent context");
+    }
+  }
+
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
+    ...visionPreTurn,
     ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: userMessage },
   ];
@@ -289,7 +338,7 @@ export async function runDatasetAgentChat(params: {
   let totalTokens = 0;
   let assistantContent = "";
 
-  // ── 4. Agentic loop ────────────────────────────────────────────────────────
+  // ── 5. Agentic loop ────────────────────────────────────────────────────────
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const { result: response } = await createKimiCompletion({
       messages,
@@ -361,16 +410,21 @@ export async function runDatasetAgentChat(params: {
       // ── read_full_context ─────────────────────────────────────────────────
       if (name === "read_full_context") {
         onEvent({ type: "tool_start", tool: "read_full_context", message: "Loading full research context…" });
+        const visionNote =
+          visionFileCount > 0
+            ? `\n\nNOTE: ${visionFileCount} image/scanned context file(s) were already injected directly into this conversation as vision images above — you have already reviewed them.`
+            : "";
         const contextResult = JSON.stringify({
           ok: true,
           hasPreThesis: ctx.hasPreThesis,
           hasVault: ctx.hasVault,
-          hasUploads: ctx.hasUploads,
+          hasUploads: ctx.hasUploads || visionFileCount > 0,
           hasMethodology: ctx.hasMethodology,
           vaultCount: ctx.vaultCount,
-          fullContext: ctx.fullContext || "No context available yet. The workspace may not have pre-thesis setup, vault files, or chart uploads.",
+          visionFilesAlreadyLoaded: visionFileCount,
+          fullContext: (ctx.fullContext || "No text context available yet.") + visionNote,
         });
-        onEvent({ type: "tool_done", tool: "read_full_context", message: `Full context loaded (${ctx.fullContext.length} chars)`, ok: true });
+        onEvent({ type: "tool_done", tool: "read_full_context", message: `Full context loaded (${ctx.fullContext.length} chars${visionFileCount > 0 ? ` + ${visionFileCount} vision images` : ""})`, ok: true });
         messages.push({ role: "tool", tool_call_id: tc.id, content: contextResult });
         continue;
       }

@@ -4,6 +4,7 @@ import { sectionsTable, eq } from "@workspace/db";
 import { markdownToHtml } from "../lib/markdownToHtml";
 import {
   createKimiCompletion,
+  buildAssistantToolCallMessage,
   extractReasoning,
   hasMoonshotKey,
   legacyWebSearchTool,
@@ -82,7 +83,7 @@ async function runResearchPass(params: {
     if (!toolCalls?.length) break;
 
     params.onEvent({ type: "tool_start", tool: "web_search", message: "Searching for evidence…" });
-    messages.push({ role: "assistant", content: msg.content ?? "", tool_calls: toolCalls });
+    messages.push(buildAssistantToolCallMessage(msg));
 
     const results = await runToolCallsFromMessage({ toolCalls, toolToUri, workspaceId: params.workspaceId });
     for (const r of results) {
@@ -218,7 +219,7 @@ export async function runThesisSectionAgent(params: {
     const toolCalls = msg.tool_calls;
     if (!toolCalls?.length) break;
 
-    messages.push({ role: "assistant", content: msg.content ?? "", tool_calls: toolCalls });
+    messages.push(buildAssistantToolCallMessage(msg));
 
     for (const tc of toolCalls) {
       const fn = "function" in tc ? tc.function : (tc as { function: { name: string; arguments: string } }).function;

@@ -4,7 +4,7 @@ import { buildPreThesisAgentSystemPrompt, APPLY_PATCH_TOOL } from "./preThesisAg
 import { applyPreThesisPatch } from "../services/preThesisPatch";
 import type { PreThesisDocumentV2 } from "../types/preThesisDocumentV2";
 import { createKimiCompletion } from "./kimiModelRouter";
-import { extractReasoning } from "./kimiFormulaTools";
+import { buildAssistantToolCallMessage, extractReasoning } from "./kimiFormulaTools";
 
 export type PreThesisAgentEvent =
   | { type: "thinking"; content: string }
@@ -94,11 +94,7 @@ export async function runPreThesisAgentChat(params: {
       break;
     }
 
-    messages.push({
-      role: "assistant",
-      content: msg.content ?? "",
-      tool_calls: toolCalls,
-    });
+    messages.push(buildAssistantToolCallMessage(msg));
 
     for (const tc of toolCalls) {
       const fn =

@@ -15,7 +15,7 @@ import {
 } from "@workspace/db";
 import { createKimiCompletion } from "./kimiModelRouter";
 import { hasKimiKey } from "./kimiTools";
-import { extractReasoning } from "./kimiFormulaTools";
+import { buildAssistantToolCallMessage, extractReasoning } from "./kimiFormulaTools";
 import {
   buildDatasetAgentSystemPrompt,
   buildDatasetAgentTools,
@@ -262,11 +262,7 @@ export async function runDatasetAgentChat(params: {
     const toolCalls = msg.tool_calls;
     if (!toolCalls?.length) break;
 
-    messages.push({
-      role: "assistant",
-      content: msg.content ?? "",
-      tool_calls: toolCalls,
-    });
+    messages.push(buildAssistantToolCallMessage(msg));
 
     for (const tc of toolCalls) {
       const fn = (tc as { function: { name: string; arguments: string } }).function;

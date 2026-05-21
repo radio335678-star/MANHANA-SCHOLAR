@@ -195,3 +195,20 @@ export function extractReasoning(message: OpenAI.Chat.Completions.ChatCompletion
     (message as { thinking?: string }).thinking
   );
 }
+
+/** Replay assistant tool-call turns for Kimi thinking models (requires reasoning_content). */
+export function buildAssistantToolCallMessage(
+  msg: OpenAI.Chat.Completions.ChatCompletionMessage,
+): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+  const toolCalls = msg.tool_calls;
+  if (!toolCalls?.length) {
+    return { role: "assistant", content: msg.content ?? "" };
+  }
+  const reasoning = extractReasoning(msg) ?? "";
+  return {
+    role: "assistant",
+    content: msg.content ?? "",
+    tool_calls: toolCalls,
+    reasoning_content: reasoning,
+  } as OpenAI.Chat.Completions.ChatCompletionMessageParam;
+}

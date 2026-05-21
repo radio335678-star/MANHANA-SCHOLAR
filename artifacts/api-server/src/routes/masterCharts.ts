@@ -538,6 +538,7 @@ router.post(
     let assistantContent = "";
     let totalTokens = 0;
     let agentError: string | undefined;
+    let versionCommitted = false;
 
     try {
       const result = await runDatasetAgentChat({
@@ -553,17 +554,26 @@ router.post(
       });
       assistantContent = result.assistantContent || assistantContent;
       totalTokens = result.totalTokens;
+      versionCommitted = result.versionCommitted;
     } catch (err) {
       agentError = err instanceof Error ? err.message : "Agent failed";
       logger.error({ err, workspaceId, chartId }, "Dataset agent stream failed");
-      send({ type: "error", message: agentError });
+      // Only send a hard error event when no version was committed; otherwise the
+      // chart is already saved and we surface a softer warning.
+      if (!versionCommitted) {
+        send({ type: "error", message: agentError });
+      } else {
+        logger.warn({ chartId }, "Agent error after commit — suppressing hard error event");
+      }
     } finally {
       clearInterval(heartbeat);
 
-      // Always persist an assistant row so chat history is never silent after failure
+      // Persist an assistant row so chat history is never silent after failure.
+      // When a version was committed but the tail of the run errored, record a
+      // success summary rather than an error string.
       const persistContent = assistantContent.trim()
         ? assistantContent
-        : agentError
+        : agentError && !versionCommitted
           ? `__error__${agentError}`
           : "Agent completed tool actions — check the spreadsheet for updates.";
 

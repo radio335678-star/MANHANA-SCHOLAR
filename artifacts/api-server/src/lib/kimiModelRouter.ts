@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
 import { getModelChain, getPrimaryModel, getKimiBaseUrl, getKimiApiKey, resolveKimiThinkingParams } from "./kimiModels";
 import { logger } from "./logger";
@@ -109,7 +110,11 @@ function accumulateStreamToolCalls(
   for (const tc of deltas) {
     let entry = acc.get(tc.index);
     if (!entry) {
-      entry = { id: tc.id ?? "", type: "function", function: { name: "", arguments: "" } };
+      const fallbackId = `call_${tc.index}_${randomUUID().slice(0, 8)}`;
+      if (!tc.id) {
+        logger.warn({ index: tc.index }, "Kimi stream chunk missing tool_call_id — using fallback id");
+      }
+      entry = { id: tc.id ?? fallbackId, type: "function", function: { name: "", arguments: "" } };
       acc.set(tc.index, entry);
     }
     if (tc.id) entry.id = tc.id;

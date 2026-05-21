@@ -324,13 +324,13 @@ export async function runDatasetAgentChat(params: {
   userMessage: string;
   history: ChatHistoryItem[];
   onEvent: (event: DatasetAgentEvent) => void;
-}): Promise<{ assistantContent: string; totalTokens: number }> {
+}): Promise<{ assistantContent: string; totalTokens: number; versionCommitted: boolean }> {
   const { workspaceId, chartId, userId, userMessage, history, onEvent } = params;
 
   if (!hasKimiKey()) {
     const msg = "AI assistant is not configured. Set KIMI_API_KEY.";
     onEvent({ type: "error", message: msg });
-    return { assistantContent: msg, totalTokens: 0 };
+    return { assistantContent: msg, totalTokens: 0, versionCommitted: false };
   }
 
   // ── 1. Fetch chart record ───────────────────────────────────────────────────
@@ -342,7 +342,7 @@ export async function runDatasetAgentChat(params: {
   if (!chart) {
     const msg = "Chart not found";
     onEvent({ type: "error", message: msg });
-    return { assistantContent: msg, totalTokens: 0 };
+    return { assistantContent: msg, totalTokens: 0, versionCommitted: false };
   }
 
   // ── 2. Deterministic file-count check (no Kimi needed) ─────────────────────
@@ -357,7 +357,7 @@ export async function runDatasetAgentChat(params: {
       `Tip: Build the master chart with the first batch, then upload the next batch in a follow-up message.`;
     onEvent({ type: "token", content: overMsg });
     onEvent({ type: "done", totalTokens: 0, content: overMsg });
-    return { assistantContent: overMsg, totalTokens: 0 };
+    return { assistantContent: overMsg, totalTokens: 0, versionCommitted: false };
   }
 
   // ── 3. Load workspace context + workbook ────────────────────────────────────
@@ -404,7 +404,7 @@ export async function runDatasetAgentChat(params: {
     onEvent({ type: "token", content: declineMsg });
     onEvent({ type: "done", totalTokens: 0, content: declineMsg });
     logger.info({ chartId, reason: preflight.reason }, "Preflight declined");
-    return { assistantContent: declineMsg, totalTokens: 0 };
+    return { assistantContent: declineMsg, totalTokens: 0, versionCommitted: false };
   }
 
   // Emit one-line confirmation before entering tool loop
@@ -489,8 +489,16 @@ export async function runDatasetAgentChat(params: {
 
   let totalTokens = 0;
   let assistantContent = "";
+  let agentShouldStop = false;
 
   const startMs = Date.now();
+
+  function assertToolCallId(tc: { id?: string }, toolName: string): string {
+    if (!tc.id?.trim()) {
+      throw new Error(`Missing tool_call_id for ${toolName} — Kimi stream returned no id`);
+    }
+    return tc.id;
+  }
 
   logger.info({
     chartId,
@@ -535,6 +543,7 @@ export async function runDatasetAgentChat(params: {
       for (const tc of toolCalls) {
         const fn = (tc as { function: { name: string; arguments: string } }).function;
         const name = fn.name;
+        const tcId = assertToolCallId(tc, name);
 
         // ── read_sheet_state ────────────────────────────────────────────────
         if (name === "read_sheet_state") {
@@ -565,7 +574,7 @@ export async function runDatasetAgentChat(params: {
             message: workingWorkbook ? `Loaded ${workingWorkbook.sheets.length} sheet(s)` : "No workbook yet",
             ok: true,
           });
-          messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+          messages.push({ role: "tool", tool_call_id: tcId, content: result });
           continue;
         }
 
@@ -587,7 +596,7 @@ export async function runDatasetAgentChat(params: {
             fullContext: (ctx.fullContext || "No text context available yet.") + visionNote,
           });
           onEvent({ type: "tool_done", tool: "read_full_context", message: `Full context loaded (${ctx.fullContext.length} chars${visionFileCount > 0 ? ` + ${visionFileCount} vision images` : ""})`, ok: true });
-          messages.push({ role: "tool", tool_call_id: tc.id, content: contextResult });
+          messages.push({ role: "tool", tool_call_id: tcId, content: contextResult });
           continue;
         }
 
@@ -623,7 +632,7 @@ export async function runDatasetAgentChat(params: {
             toolResult = JSON.stringify({ ok: false, error: errMsg });
             onEvent({ type: "tool_done", tool: "apply_sheet_patch", message: errMsg, ok: false });
           }
-          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          messages.push({ role: "tool", tool_call_id: tcId, content: toolResult });
           continue;
         }
 
@@ -666,7 +675,7 @@ export async function runDatasetAgentChat(params: {
             toolResult = JSON.stringify({ ok: false, error: errMsg });
             onEvent({ type: "tool_done", tool: "generate_sample_rows", message: errMsg, ok: false });
           }
-          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          messages.push({ role: "tool", tool_call_id: tcId, content: toolResult });
           continue;
         }
 
@@ -712,7 +721,7 @@ export async function runDatasetAgentChat(params: {
             toolResult = JSON.stringify({ ok: false, error: errMsg });
             onEvent({ type: "tool_done", tool: "add_formula_column", message: errMsg, ok: false });
           }
-          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          messages.push({ role: "tool", tool_call_id: tcId, content: toolResult });
           continue;
         }
 
@@ -722,25 +731,17 @@ export async function runDatasetAgentChat(params: {
           if (!workingWorkbook) {
             messages.push({
               role: "tool",
-              tool_call_id: tc.id,
+              tool_call_id: tcId,
               content: JSON.stringify({ ok: false, valid: false, issues: [{ message: "No workbook yet" }] }),
             });
             onEvent({ type: "tool_done", tool: "validate_sheet", message: "No workbook", ok: false });
             continue;
           }
           const validation = validateWorkbook(workingWorkbook);
-          messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ ok: true, ...validation }) });
-          onEvent({
-            type: "tool_done",
-            tool: "validate_sheet",
-            message: validation.valid
-              ? `Valid — ${validation.columnCount} columns, ${validation.rowCount} rows, ${validation.sheetCount} sheet(s)`
-              : `${validation.issues.length} issue(s) found`,
-            ok: validation.valid,
-          });
 
-          // Auto-commit: if build intent detected and workbook is valid and not yet committed
-          if (buildIntentDetected && validation.valid && workingWorkbook && !versionCommitted) {
+          // Auto-commit on build intent: merge result into the single tool response
+          let validatePayload: Record<string, unknown> = { ok: true, ...validation };
+          if (buildIntentDetected && validation.valid && !versionCommitted) {
             onEvent({ type: "tool_start", tool: "commit_version", message: "Auto-saving version (build intent)…" });
             try {
               const committed = await commitVersion(
@@ -752,16 +753,31 @@ export async function runDatasetAgentChat(params: {
                 onEvent,
               );
               versionCommitted = true;
-              const autoCommitResult = JSON.stringify({ ok: true, version: committed.version, autoCommitted: true });
-              messages.push({ role: "tool", tool_call_id: `${tc.id}-autocommit`, content: autoCommitResult });
+              agentShouldStop = true;
+              validatePayload = { ...validatePayload, autoCommitted: true, version: committed.version };
               onEvent({ type: "tool_done", tool: "commit_version", message: `v${committed.version} saved`, ok: true });
               logger.info({ chartId, version: committed.version }, "Auto-committed after validate (build intent)");
+              const summary = `Master chart built and saved as v${committed.version}.`;
+              assistantContent += summary;
+              onEvent({ type: "token", content: summary });
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : "Auto-commit failed";
               logger.warn({ err, chartId }, "Auto-commit after validate failed");
+              validatePayload = { ...validatePayload, autoCommitted: false, commitError: errMsg };
               onEvent({ type: "tool_done", tool: "commit_version", message: errMsg, ok: false });
             }
           }
+
+          // Single tool response — no extra messages, no fabricated tool_call_id
+          messages.push({ role: "tool", tool_call_id: tcId, content: JSON.stringify(validatePayload) });
+          onEvent({
+            type: "tool_done",
+            tool: "validate_sheet",
+            message: validation.valid
+              ? `Valid — ${validation.columnCount} columns, ${validation.rowCount} rows, ${validation.sheetCount} sheet(s)`
+              : `${validation.issues.length} issue(s) found`,
+            ok: validation.valid,
+          });
           continue;
         }
 
@@ -770,7 +786,7 @@ export async function runDatasetAgentChat(params: {
           if (versionCommitted) {
             messages.push({
               role: "tool",
-              tool_call_id: tc.id,
+              tool_call_id: tcId,
               content: JSON.stringify({ ok: false, error: "Version already committed in this session. Make more changes first." }),
             });
             onEvent({ type: "tool_done", tool: "commit_version", message: "Already committed", ok: false });
@@ -779,7 +795,7 @@ export async function runDatasetAgentChat(params: {
           if (!workingWorkbook) {
             messages.push({
               role: "tool",
-              tool_call_id: tc.id,
+              tool_call_id: tcId,
               content: JSON.stringify({ ok: false, error: "No workbook to commit. Build the schema first." }),
             });
             onEvent({ type: "tool_done", tool: "commit_version", message: "No workbook", ok: false });
@@ -803,6 +819,7 @@ export async function runDatasetAgentChat(params: {
               onEvent,
             );
             versionCommitted = true;
+            agentShouldStop = true;
             toolResult = JSON.stringify({ ok: true, version: committed.version, vaultResourceId: committed.vaultResourceId });
             onEvent({ type: "tool_done", tool: "commit_version", message: `Version ${committed.version} saved`, ok: true });
           } catch (err) {
@@ -810,21 +827,35 @@ export async function runDatasetAgentChat(params: {
             toolResult = JSON.stringify({ ok: false, error: errMsg });
             onEvent({ type: "tool_done", tool: "commit_version", message: errMsg, ok: false });
           }
-          messages.push({ role: "tool", tool_call_id: tc.id, content: toolResult });
+          messages.push({ role: "tool", tool_call_id: tcId, content: toolResult });
           continue;
         }
 
         // ── unknown tool ────────────────────────────────────────────────────
         messages.push({
           role: "tool",
-          tool_call_id: tc.id,
+          tool_call_id: tcId,
           content: JSON.stringify({ ok: false, error: `Unknown tool: ${name}` }),
         });
       }
+
+      if (agentShouldStop) break;
     }
   };
 
-  await withTimeout(agentLoop(), AGENT_TIMEOUT_MS, "Dataset agent");
+  try {
+    await withTimeout(agentLoop(), AGENT_TIMEOUT_MS, "Dataset agent");
+  } catch (err) {
+    if (versionCommitted) {
+      // Chart was already saved — don't surface a hard error to the client.
+      const fallbackMsg = assistantContent.trim() || "Chart saved. Some follow-up steps did not complete.";
+      assistantContent = fallbackMsg;
+      logger.warn({ err, chartId, versionCommitted }, "Dataset agent failed after commit — treating as partial success");
+      onEvent({ type: "token", content: fallbackMsg });
+    } else {
+      throw err;
+    }
+  }
 
   logger.info({
     chartId,
@@ -836,5 +867,5 @@ export async function runDatasetAgentChat(params: {
   }, "Dataset agent completed");
 
   onEvent({ type: "done", totalTokens, content: assistantContent });
-  return { assistantContent, totalTokens };
+  return { assistantContent, totalTokens, versionCommitted };
 }

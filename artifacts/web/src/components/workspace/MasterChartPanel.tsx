@@ -403,6 +403,7 @@ export function MasterChartPanel({
     // Stream buffer for accumulating assistant tokens
     let assistantBuffer = "";
     let assistantMsgId = uid();
+    let committedThisRun = false;
 
     // Add placeholder assistant message
     setMessages((m) => [
@@ -465,6 +466,7 @@ export function MasterChartPanel({
               break;
 
             case "version_committed": {
+              committedThisRun = true;
               const vNum = event.version;
               setCurrentVersion(vNum);
               setSelectedVersion(vNum);
@@ -492,14 +494,22 @@ export function MasterChartPanel({
 
             case "error": {
               const errMsg = event.message;
-              setMessages((m) =>
-                m.map((msg) =>
-                  msg.id === assistantMsgId
-                    ? { ...msg, content: `__error__${errMsg}` }
-                    : msg,
-                ),
-              );
-              toast({ title: "Agent error", description: errMsg, variant: "destructive" });
+              if (committedThisRun) {
+                // Chart was saved — show a non-fatal warning toast, don't mark message as error.
+                toast({
+                  title: "Chart saved with warnings",
+                  description: "Your chart was committed successfully. Some follow-up steps did not complete.",
+                });
+              } else {
+                setMessages((m) =>
+                  m.map((msg) =>
+                    msg.id === assistantMsgId
+                      ? { ...msg, content: `__error__${errMsg}` }
+                      : msg,
+                  ),
+                );
+                toast({ title: "Agent error", description: errMsg, variant: "destructive" });
+              }
               break;
             }
 

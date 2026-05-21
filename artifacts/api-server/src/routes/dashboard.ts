@@ -13,6 +13,7 @@ import {
   sql,
 } from "@workspace/db";
 import { requireAuth, requireDbUser } from "../lib/auth";
+import { logger } from "../lib/logger";
 import {
   GetDashboardSummaryResponse,
   GetDashboardActivityResponse,
@@ -23,8 +24,9 @@ const router: IRouter = Router();
 
 router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> => {
   const dbUser = await requireDbUser(req, res);
-    if (!dbUser) return;
+  if (!dbUser) return;
 
+  try {
       const [wsStats] = await db
     .select({
       total: count(),
@@ -100,6 +102,8 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
         ...ws,
         createdAt: ws.createdAt.toISOString(),
         updatedAt: ws.updatedAt.toISOString(),
+        lastLiveVerifiedAt: ws.lastLiveVerifiedAt?.toISOString() ?? null,
+        lockedAt: ws.lockedAt?.toISOString() ?? null,
         totalSections: Number(total),
         completedSections: Number(completed),
       };
@@ -118,6 +122,12 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
       recentWorkspaces: workspacesWithCounts,
     }),
   );
+  } catch (err) {
+    logger.error({ err }, "dashboard/summary failed");
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Dashboard summary failed",
+    });
+  }
 });
 
 router.get("/dashboard/activity", requireAuth, async (req, res): Promise<void> => {

@@ -186,6 +186,12 @@ export function MasterChartPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
+  useEffect(() => {
+    return () => {
+      if (visionHighlightTimerRef.current) clearTimeout(visionHighlightTimerRef.current);
+    };
+  }, []);
+
   const authFetch = useCallback(
     async (path: string, init?: RequestInit) => {
       const token = await getToken();
@@ -628,6 +634,31 @@ export function MasterChartPanel({
     toast({ title: "Context file removed" });
   };
 
+  const handleDatasetAttachClick = useCallback(() => {
+    toast({
+      title: "Tip: use quaasx-vision-reader",
+      description:
+        "For PDFs and scanned forms, quaasx-vision-reader reads up to 10 files in full detail. " +
+        "Sync to Dataset AI automatically (toggle) or with Send to Dataset AI. " +
+        "You can still attach up to 3 files here for quick context.",
+      duration: 9000,
+    });
+
+    setVisionTabHighlight(true);
+    if (visionHighlightTimerRef.current) clearTimeout(visionHighlightTimerRef.current);
+    visionHighlightTimerRef.current = setTimeout(() => setVisionTabHighlight(false), 8000);
+
+    requestAnimationFrame(() => {
+      panelTabsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [toast]);
+
+  const handleVisionSendToDataset = useCallback((text: string) => {
+    setPanelTab("dataset");
+    setTimeout(() => void handleGenerate(text), 80);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   const handleDeleteVersion = async (version: number) => {
     if (!selectedId) return;
     if (!window.confirm(`Delete chart version v${version}? This cannot be undone.`)) return;
@@ -836,39 +867,6 @@ export function MasterChartPanel({
       </div>
     </>
   ) : null;
-
-  useEffect(() => {
-    return () => {
-      if (visionHighlightTimerRef.current) clearTimeout(visionHighlightTimerRef.current);
-    };
-  }, []);
-
-  const handleDatasetAttachClick = useCallback(() => {
-    toast({
-      title: "Tip: use quaasx-vision-reader",
-      description:
-        "For PDFs and scanned forms, quaasx-vision-reader reads up to 10 files in full detail. " +
-        "Sync to Dataset AI automatically (toggle) or with Send to Dataset AI. " +
-        "You can still attach up to 3 files here for quick context.",
-      duration: 9000,
-    });
-
-    setVisionTabHighlight(true);
-    if (visionHighlightTimerRef.current) clearTimeout(visionHighlightTimerRef.current);
-    visionHighlightTimerRef.current = setTimeout(() => setVisionTabHighlight(false), 8000);
-
-    requestAnimationFrame(() => {
-      panelTabsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  }, [toast]);
-
-  // ── Vision Reader sync callback ────────────────────────────────────────────
-  const handleVisionSendToDataset = useCallback((text: string) => {
-    setPanelTab("dataset");
-    // Small delay so the tab switch renders before we fire the message
-    setTimeout(() => void handleGenerate(text), 80);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
 
   const innerContent = (
     <div className="space-y-6 animate-in fade-in duration-300">

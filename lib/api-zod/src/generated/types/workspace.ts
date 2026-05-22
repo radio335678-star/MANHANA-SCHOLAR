@@ -5,6 +5,7 @@
  * MANTHANA-SCHOLER — AI-powered thesis and research writing platform for Indian medical scholars
  * OpenAPI spec version: 1.0.0
  */
+import type { DatasetMasterChartPlan } from './datasetMasterChartPlan';
 import type { WorkspacePreThesisChecklist } from './workspacePreThesisChecklist';
 import type { WorkspaceStatus } from './workspaceStatus';
 import type { WorkspaceWorkflowState } from './workspaceWorkflowState';
@@ -39,13 +40,21 @@ export interface Workspace {
   preThesisLockedMd?: string | null;
   /** @nullable */
   preThesisMdHash?: string | null;
+  /** @nullable */
   preThesisChecklist?: WorkspacePreThesisChecklist;
   /** @nullable */
   researchNotes?: string | null;
+  datasetMasterChartPlan?: DatasetMasterChartPlan | null;
   /** @nullable */
   lastLiveVerifiedAt?: string | null;
   /** @nullable */
   lockedAt?: string | null;
+  /**
+     * AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)
+     * @minimum 0
+     * @maximum 9
+     */
+  humaniserIntensity?: number;
   totalSections: number;
   completedSections: number;
   createdAt: string;

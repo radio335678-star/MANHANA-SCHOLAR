@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { WorkspaceInput } from "@workspace/api-client-react";
+import type { DatasetPlan } from "@/components/workspace/DatasetMasterChartAnalyzePanel";
 
 export type BootstrapInput = {
   workspacePayload: WorkspaceInput;
@@ -9,6 +10,7 @@ export type BootstrapInput = {
   candidateName?: string;
   synopsisFile?: File | null;
   resourceFiles?: File[];
+  datasetPlan?: DatasetPlan;
 };
 
 export type BootstrapResult = {
@@ -38,6 +40,17 @@ export function useWorkspaceBootstrap(getToken: () => Promise<string | null>) {
           preThesisChecklist: input.preThesisChecklist,
           researchNotes: input.researchNotes?.trim() || undefined,
           candidateName: input.candidateName?.trim() || undefined,
+          ...(input.datasetPlan
+            ? {
+                datasetMasterChartPlan: {
+                  analysisId: input.datasetPlan.analysisId,
+                  selectedChartIds: input.datasetPlan.selectedChartIds,
+                  selectedCharts: input.datasetPlan.selectedCharts ?? [],
+                  fileReadiness: input.datasetPlan.fileReadiness,
+                  assistantInstructions: input.datasetPlan.assistantInstructions?.trim() || undefined,
+                },
+              }
+            : {}),
         }),
       });
       if (!createRes.ok) {

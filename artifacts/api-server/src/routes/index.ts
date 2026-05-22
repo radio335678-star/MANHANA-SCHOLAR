@@ -15,6 +15,7 @@ import preThesisChatRouter from "./preThesisChat";
 import masterChartsRouter from "./masterCharts";
 import visionReaderRouter from "./visionReader";
 import thesisAutoCompleteRouter from "./thesisAutoComplete";
+import workspaceDatasetPreviewRouter from "./workspaceDatasetPreview";
 
 const router: IRouter = Router();
 
@@ -22,6 +23,10 @@ router.use(healthRouter);
 router.use(referenceRouter);
 router.use(profileRouter);
 router.use(dashboardRouter);
+// dataset-preview must be registered before workspacesRouter because the
+// pattern /workspaces/:id would otherwise greedily match
+// /workspaces/dataset-mastercharts/analyze
+router.use(workspaceDatasetPreviewRouter);
 router.use(workspacesRouter);
 router.use(sectionsRouter);
 router.use(chatRouter);

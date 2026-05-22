@@ -11,4 +11,10 @@ export interface GenerateContentInput {
   prompt: string;
   tone?: GenerateContentInputTone;
   wordLimit?: number;
+  /**
+     * Override workspace humaniser intensity for this generation request
+     * @minimum 0
+     * @maximum 9
+     */
+  humaniserIntensity?: number;
 }

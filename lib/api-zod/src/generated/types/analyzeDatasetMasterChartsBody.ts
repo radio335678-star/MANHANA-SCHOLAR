@@ -6,7 +6,11 @@
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * @nullable
- */
-export type WorkspacePreThesisChecklist = {[key: string]: boolean} | null;
+export type AnalyzeDatasetMasterChartsBody = {
+  title?: string;
+  domain?: string;
+  qualification?: string;
+  researchNotes?: string;
+  synopsis?: string;
+  resources?: string[];
+};

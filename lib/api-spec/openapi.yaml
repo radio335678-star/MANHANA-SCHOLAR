@@ -200,6 +200,46 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workspace"
 
+  /workspaces/dataset-mastercharts/analyze:
+    post:
+      operationId: analyzeDatasetMasterCharts
+      summary: Analyze research materials for dataset master-chart recommendations
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                domain:
+                  type: string
+                qualification:
+                  type: string
+                researchNotes:
+                  type: string
+                synopsis:
+                  type: string
+                resources:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Dataset master-chart recommendations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatasetPreviewAnalysis"
+        "503":
+          description: AI analysis is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /workspaces/{id}:
     get:
       operationId: getWorkspace
@@ -1221,6 +1261,79 @@ components:
         createdAt:
           type: string
 
+    # ─── DATASET MASTER-CHART PREVIEW ────────────────────────────────────────
+    DatasetChartSuggestion:
+      type: object
+      required: [id, name, category, reason, columnHints, confidence]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [must_have, good_to_have, nice_to_have]
+        reason:
+          type: string
+        columnHints:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        sourceHint:
+          type: string
+
+    DatasetPreviewAnalysis:
+      type: object
+      required: [analysisId, summary, studyDesignSignal, categories, tokensUsed]
+      properties:
+        analysisId:
+          type: string
+        summary:
+          type: string
+        studyDesignSignal:
+          type: string
+        categories:
+          type: object
+          required: [mustHave, goodToHave, niceToHave]
+          properties:
+            mustHave:
+              type: array
+              items:
+                $ref: "#/components/schemas/DatasetChartSuggestion"
+            goodToHave:
+              type: array
+              items:
+                $ref: "#/components/schemas/DatasetChartSuggestion"
+            niceToHave:
+              type: array
+              items:
+                $ref: "#/components/schemas/DatasetChartSuggestion"
+        tokensUsed:
+          type: integer
+
+    DatasetMasterChartPlan:
+      type: object
+      required: [analysisId, selectedChartIds, selectedCharts, fileReadiness]
+      properties:
+        analysisId:
+          type: string
+        selectedChartIds:
+          type: array
+          items:
+            type: string
+        selectedCharts:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatasetChartSuggestion"
+        fileReadiness:
+          type: string
+          enum: [has_marked_files, needs_empty_files]
+        assistantInstructions:
+          type: string
+
     # ─── WORKSPACE ───────────────────────────────────────────────────────────
     Workspace:
       type: object
@@ -1267,6 +1380,10 @@ components:
             type: boolean
         researchNotes:
           type: ["string", "null"]
+        datasetMasterChartPlan:
+          oneOf:
+            - $ref: "#/components/schemas/DatasetMasterChartPlan"
+            - type: "null"
         lastLiveVerifiedAt:
           type: ["string", "null"]
         lockedAt:
@@ -1354,6 +1471,8 @@ components:
             type: boolean
         researchNotes:
           type: string
+        datasetMasterChartPlan:
+          $ref: "#/components/schemas/DatasetMasterChartPlan"
 
     WorkspaceUpdate:
       type: object

@@ -13,6 +13,7 @@ export function mapWorkspaceListRow(
     preThesisLockedMd: undefined,
     preThesisChecklist: undefined,
     researchNotes: undefined,
+    datasetMasterChartPlan: undefined,
   };
 }
 
@@ -47,6 +48,7 @@ export function mapWorkspaceRow(
     preThesisMdHash: ws.preThesisMdHash ?? null,
     preThesisChecklist: ws.preThesisChecklist ?? undefined,
     researchNotes: ws.researchNotes ?? null,
+    datasetMasterChartPlan: ws.datasetMasterChartPlan ?? null,
     lastLiveVerifiedAt: ws.lastLiveVerifiedAt?.toISOString() ?? null,
     lockedAt: ws.lockedAt?.toISOString() ?? null,
     totalSections: ws.totalSections ?? 0,

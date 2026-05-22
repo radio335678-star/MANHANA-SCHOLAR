@@ -15,5 +15,8 @@ export interface SectionInput {
   content?: string;
   status?: SectionInputStatus;
   order?: number;
+  targetPages?: number;
+  minPages?: number;
+  maxPages?: number;
   notes?: string;
 }

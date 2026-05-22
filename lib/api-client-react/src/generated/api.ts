@@ -21,10 +21,14 @@ import type {
 
 import type {
   ActivityEvent,
+  AnalyzeDatasetMasterChartsBody,
+  AutoCompleteValidation,
   ChatMessage,
   ChatMessageInput,
+  CoherenceReport,
   College,
   DashboardSummary,
+  DatasetPreviewAnalysis,
   Domain,
   ErrorResponse,
   GenerateContentInput,
@@ -40,8 +44,10 @@ import type {
   SectionInput,
   SectionReorderInput,
   SectionUpdate,
+  StreamPreThesisChatBody,
   TransitionWorkspaceWorkflowBody,
   University,
+  UploadSectionChatFileBody,
   UserProfile,
   UserProfileInput,
   VaultResource,
@@ -922,6 +928,96 @@ export const useCreateWorkspace = <TError = ErrorType<unknown>,
       return useMutation(getCreateWorkspaceMutationOptions(options));
     }
 
+export const getAnalyzeDatasetMasterChartsUrl = () => {
+
+
+
+
+  return `/api/workspaces/dataset-mastercharts/analyze`
+}
+
+/**
+ * @summary Analyze research materials for dataset master-chart recommendations
+ */
+export const analyzeDatasetMasterCharts = async (analyzeDatasetMasterChartsBody: AnalyzeDatasetMasterChartsBody, options?: RequestInit): Promise<DatasetPreviewAnalysis> => {
+    const formData = new FormData();
+if(analyzeDatasetMasterChartsBody.title !== undefined) {
+ formData.append(`title`, analyzeDatasetMasterChartsBody.title);
+ }
+if(analyzeDatasetMasterChartsBody.domain !== undefined) {
+ formData.append(`domain`, analyzeDatasetMasterChartsBody.domain);
+ }
+if(analyzeDatasetMasterChartsBody.qualification !== undefined) {
+ formData.append(`qualification`, analyzeDatasetMasterChartsBody.qualification);
+ }
+if(analyzeDatasetMasterChartsBody.researchNotes !== undefined) {
+ formData.append(`researchNotes`, analyzeDatasetMasterChartsBody.researchNotes);
+ }
+if(analyzeDatasetMasterChartsBody.synopsis !== undefined) {
+ formData.append(`synopsis`, analyzeDatasetMasterChartsBody.synopsis);
+ }
+if(analyzeDatasetMasterChartsBody.resources !== undefined) {
+ analyzeDatasetMasterChartsBody.resources.forEach(value => formData.append(`resources`, value));
+ }
+
+  return customFetch<DatasetPreviewAnalysis>(getAnalyzeDatasetMasterChartsUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body:
+      formData,
+  }
+);}
+
+
+
+
+export const getAnalyzeDatasetMasterChartsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof analyzeDatasetMasterCharts>>, TError,{data: BodyType<AnalyzeDatasetMasterChartsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof analyzeDatasetMasterCharts>>, TError,{data: BodyType<AnalyzeDatasetMasterChartsBody>}, TContext> => {
+
+const mutationKey = ['analyzeDatasetMasterCharts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof analyzeDatasetMasterCharts>>, {data: BodyType<AnalyzeDatasetMasterChartsBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  analyzeDatasetMasterCharts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnalyzeDatasetMasterChartsMutationResult = NonNullable<Awaited<ReturnType<typeof analyzeDatasetMasterCharts>>>
+    export type AnalyzeDatasetMasterChartsMutationBody = BodyType<AnalyzeDatasetMasterChartsBody>
+    export type AnalyzeDatasetMasterChartsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Analyze research materials for dataset master-chart recommendations
+ */
+export const useAnalyzeDatasetMasterCharts = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof analyzeDatasetMasterCharts>>, TError,{data: BodyType<AnalyzeDatasetMasterChartsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof analyzeDatasetMasterCharts>>,
+        TError,
+        {data: BodyType<AnalyzeDatasetMasterChartsBody>},
+        TContext
+      > => {
+      return useMutation(getAnalyzeDatasetMasterChartsMutationOptions(options));
+    }
+
 export const getGetWorkspaceUrl = (id: number,) => {
 
 
@@ -1652,6 +1748,295 @@ export const useUploadPreThesisSynopsis = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUploadPreThesisSynopsisMutationOptions(options));
+    }
+
+export const getListPreThesisChatUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/chat`
+}
+
+/**
+ * @summary List pre-thesis assistant messages
+ */
+export const listPreThesisChat = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getListPreThesisChatUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPreThesisChatQueryKey = (id: number,) => {
+    return [
+    `/api/workspaces/${id}/pre-thesis/chat`
+    ] as const;
+    }
+
+
+export const getListPreThesisChatQueryOptions = <TData = Awaited<ReturnType<typeof listPreThesisChat>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPreThesisChat>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPreThesisChatQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPreThesisChat>>> = ({ signal }) => listPreThesisChat(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPreThesisChat>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPreThesisChatQueryResult = NonNullable<Awaited<ReturnType<typeof listPreThesisChat>>>
+export type ListPreThesisChatQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pre-thesis assistant messages
+ */
+
+export function useListPreThesisChat<TData = Awaited<ReturnType<typeof listPreThesisChat>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPreThesisChat>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPreThesisChatQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getClearPreThesisChatUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/chat`
+}
+
+/**
+ * @summary Clear pre-thesis assistant conversation
+ */
+export const clearPreThesisChat = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getClearPreThesisChatUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getClearPreThesisChatMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearPreThesisChat>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clearPreThesisChat>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['clearPreThesisChat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearPreThesisChat>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  clearPreThesisChat(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClearPreThesisChatMutationResult = NonNullable<Awaited<ReturnType<typeof clearPreThesisChat>>>
+
+    export type ClearPreThesisChatMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Clear pre-thesis assistant conversation
+ */
+export const useClearPreThesisChat = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearPreThesisChat>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clearPreThesisChat>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getClearPreThesisChatMutationOptions(options));
+    }
+
+export const getStreamPreThesisChatUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/chat/stream`
+}
+
+/**
+ * @summary Stream pre-thesis AI assistant (SSE)
+ */
+export const streamPreThesisChat = async (id: number,
+    streamPreThesisChatBody: StreamPreThesisChatBody, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getStreamPreThesisChatUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      streamPreThesisChatBody,)
+  }
+);}
+
+
+
+
+export const getStreamPreThesisChatMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof streamPreThesisChat>>, TError,{id: number;data: BodyType<StreamPreThesisChatBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof streamPreThesisChat>>, TError,{id: number;data: BodyType<StreamPreThesisChatBody>}, TContext> => {
+
+const mutationKey = ['streamPreThesisChat'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof streamPreThesisChat>>, {id: number;data: BodyType<StreamPreThesisChatBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  streamPreThesisChat(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StreamPreThesisChatMutationResult = NonNullable<Awaited<ReturnType<typeof streamPreThesisChat>>>
+    export type StreamPreThesisChatMutationBody = BodyType<StreamPreThesisChatBody>
+    export type StreamPreThesisChatMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Stream pre-thesis AI assistant (SSE)
+ */
+export const useStreamPreThesisChat = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof streamPreThesisChat>>, TError,{id: number;data: BodyType<StreamPreThesisChatBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof streamPreThesisChat>>,
+        TError,
+        {id: number;data: BodyType<StreamPreThesisChatBody>},
+        TContext
+      > => {
+      return useMutation(getStreamPreThesisChatMutationOptions(options));
+    }
+
+export const getUndoPreThesisRevisionUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspaces/${id}/pre-thesis/revisions/undo`
+}
+
+/**
+ * @summary Undo last AI document revision
+ */
+export const undoPreThesisRevision = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getUndoPreThesisRevisionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getUndoPreThesisRevisionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoPreThesisRevision>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof undoPreThesisRevision>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['undoPreThesisRevision'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof undoPreThesisRevision>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  undoPreThesisRevision(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UndoPreThesisRevisionMutationResult = NonNullable<Awaited<ReturnType<typeof undoPreThesisRevision>>>
+
+    export type UndoPreThesisRevisionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Undo last AI document revision
+ */
+export const useUndoPreThesisRevision = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoPreThesisRevision>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof undoPreThesisRevision>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUndoPreThesisRevisionMutationOptions(options));
     }
 
 export const getExportPreThesisDocxUrl = (id: number,) => {
@@ -2479,6 +2864,448 @@ export const useReorderSections = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getReorderSectionsMutationOptions(options));
+    }
+
+export const getScaffoldSectionsUrl = (workspaceId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/sections/scaffold`
+}
+
+/**
+ * @summary Auto-create standard thesis sections with page targets
+ */
+export const scaffoldSections = async (workspaceId: number, options?: RequestInit): Promise<Section[]> => {
+
+  return customFetch<Section[]>(getScaffoldSectionsUrl(workspaceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getScaffoldSectionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scaffoldSections>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scaffoldSections>>, TError,{workspaceId: number}, TContext> => {
+
+const mutationKey = ['scaffoldSections'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scaffoldSections>>, {workspaceId: number}> = (props) => {
+          const {workspaceId} = props ?? {};
+
+          return  scaffoldSections(workspaceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScaffoldSectionsMutationResult = NonNullable<Awaited<ReturnType<typeof scaffoldSections>>>
+
+    export type ScaffoldSectionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Auto-create standard thesis sections with page targets
+ */
+export const useScaffoldSections = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scaffoldSections>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scaffoldSections>>,
+        TError,
+        {workspaceId: number},
+        TContext
+      > => {
+      return useMutation(getScaffoldSectionsMutationOptions(options));
+    }
+
+export const getGetSectionCoherenceUrl = (workspaceId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/sections/coherence`
+}
+
+/**
+ * @summary Coherence report for thesis sections
+ */
+export const getSectionCoherence = async (workspaceId: number, options?: RequestInit): Promise<CoherenceReport> => {
+
+  return customFetch<CoherenceReport>(getGetSectionCoherenceUrl(workspaceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSectionCoherenceQueryKey = (workspaceId: number,) => {
+    return [
+    `/api/workspaces/${workspaceId}/sections/coherence`
+    ] as const;
+    }
+
+
+export const getGetSectionCoherenceQueryOptions = <TData = Awaited<ReturnType<typeof getSectionCoherence>>, TError = ErrorType<unknown>>(workspaceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSectionCoherence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSectionCoherenceQueryKey(workspaceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSectionCoherence>>> = ({ signal }) => getSectionCoherence(workspaceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(workspaceId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSectionCoherence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSectionCoherenceQueryResult = NonNullable<Awaited<ReturnType<typeof getSectionCoherence>>>
+export type GetSectionCoherenceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Coherence report for thesis sections
+ */
+
+export function useGetSectionCoherence<TData = Awaited<ReturnType<typeof getSectionCoherence>>, TError = ErrorType<unknown>>(
+ workspaceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSectionCoherence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSectionCoherenceQueryOptions(workspaceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUploadSectionChatFileUrl = (workspaceId: number,
+    sectionId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/sections/${sectionId}/chat/upload`
+}
+
+/**
+ * @summary Upload file for section AI assistant
+ */
+export const uploadSectionChatFile = async (workspaceId: number,
+    sectionId: number,
+    uploadSectionChatFileBody: UploadSectionChatFileBody, options?: RequestInit): Promise<void> => {
+    const formData = new FormData();
+if(uploadSectionChatFileBody.file !== undefined) {
+ formData.append(`file`, uploadSectionChatFileBody.file);
+ }
+
+  return customFetch<void>(getUploadSectionChatFileUrl(workspaceId,sectionId),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body:
+      formData,
+  }
+);}
+
+
+
+
+export const getUploadSectionChatFileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSectionChatFile>>, TError,{workspaceId: number;sectionId: number;data: BodyType<UploadSectionChatFileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadSectionChatFile>>, TError,{workspaceId: number;sectionId: number;data: BodyType<UploadSectionChatFileBody>}, TContext> => {
+
+const mutationKey = ['uploadSectionChatFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadSectionChatFile>>, {workspaceId: number;sectionId: number;data: BodyType<UploadSectionChatFileBody>}> = (props) => {
+          const {workspaceId,sectionId,data} = props ?? {};
+
+          return  uploadSectionChatFile(workspaceId,sectionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadSectionChatFileMutationResult = NonNullable<Awaited<ReturnType<typeof uploadSectionChatFile>>>
+    export type UploadSectionChatFileMutationBody = BodyType<UploadSectionChatFileBody>
+    export type UploadSectionChatFileMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Upload file for section AI assistant
+ */
+export const useUploadSectionChatFile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSectionChatFile>>, TError,{workspaceId: number;sectionId: number;data: BodyType<UploadSectionChatFileBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadSectionChatFile>>,
+        TError,
+        {workspaceId: number;sectionId: number;data: BodyType<UploadSectionChatFileBody>},
+        TContext
+      > => {
+      return useMutation(getUploadSectionChatFileMutationOptions(options));
+    }
+
+export const getValidateAutoCompleteUrl = (workspaceId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/auto-complete/validate`
+}
+
+/**
+ * @summary Validate auto-complete prerequisites
+ */
+export const validateAutoComplete = async (workspaceId: number, options?: RequestInit): Promise<AutoCompleteValidation> => {
+
+  return customFetch<AutoCompleteValidation>(getValidateAutoCompleteUrl(workspaceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidateAutoCompleteQueryKey = (workspaceId: number,) => {
+    return [
+    `/api/workspaces/${workspaceId}/auto-complete/validate`
+    ] as const;
+    }
+
+
+export const getValidateAutoCompleteQueryOptions = <TData = Awaited<ReturnType<typeof validateAutoComplete>>, TError = ErrorType<unknown>>(workspaceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof validateAutoComplete>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getValidateAutoCompleteQueryKey(workspaceId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof validateAutoComplete>>> = ({ signal }) => validateAutoComplete(workspaceId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(workspaceId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof validateAutoComplete>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ValidateAutoCompleteQueryResult = NonNullable<Awaited<ReturnType<typeof validateAutoComplete>>>
+export type ValidateAutoCompleteQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Validate auto-complete prerequisites
+ */
+
+export function useValidateAutoComplete<TData = Awaited<ReturnType<typeof validateAutoComplete>>, TError = ErrorType<unknown>>(
+ workspaceId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof validateAutoComplete>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getValidateAutoCompleteQueryOptions(workspaceId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getStreamAutoCompleteUrl = (workspaceId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/auto-complete/stream`
+}
+
+/**
+ * @summary Auto-complete entire thesis (SSE)
+ */
+export const streamAutoComplete = async (workspaceId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getStreamAutoCompleteUrl(workspaceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getStreamAutoCompleteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof streamAutoComplete>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof streamAutoComplete>>, TError,{workspaceId: number}, TContext> => {
+
+const mutationKey = ['streamAutoComplete'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof streamAutoComplete>>, {workspaceId: number}> = (props) => {
+          const {workspaceId} = props ?? {};
+
+          return  streamAutoComplete(workspaceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StreamAutoCompleteMutationResult = NonNullable<Awaited<ReturnType<typeof streamAutoComplete>>>
+
+    export type StreamAutoCompleteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Auto-complete entire thesis (SSE)
+ */
+export const useStreamAutoComplete = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof streamAutoComplete>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof streamAutoComplete>>,
+        TError,
+        {workspaceId: number},
+        TContext
+      > => {
+      return useMutation(getStreamAutoCompleteMutationOptions(options));
+    }
+
+export const getCancelAutoCompleteUrl = (workspaceId: number,) => {
+
+
+
+
+  return `/api/workspaces/${workspaceId}/auto-complete/cancel`
+}
+
+/**
+ * @summary Cancel running auto-complete
+ */
+export const cancelAutoComplete = async (workspaceId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getCancelAutoCompleteUrl(workspaceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCancelAutoCompleteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAutoComplete>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelAutoComplete>>, TError,{workspaceId: number}, TContext> => {
+
+const mutationKey = ['cancelAutoComplete'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelAutoComplete>>, {workspaceId: number}> = (props) => {
+          const {workspaceId} = props ?? {};
+
+          return  cancelAutoComplete(workspaceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelAutoCompleteMutationResult = NonNullable<Awaited<ReturnType<typeof cancelAutoComplete>>>
+
+    export type CancelAutoCompleteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Cancel running auto-complete
+ */
+export const useCancelAutoComplete = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelAutoComplete>>, TError,{workspaceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelAutoComplete>>,
+        TError,
+        {workspaceId: number},
+        TContext
+      > => {
+      return useMutation(getCancelAutoCompleteMutationOptions(options));
     }
 
 export const getListChatMessagesUrl = (workspaceId: number,

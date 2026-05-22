@@ -5,6 +5,8 @@
  * MANTHANA-SCHOLER — AI-powered thesis and research writing platform for Indian medical scholars
  * OpenAPI spec version: 1.0.0
  */
+import type { DatasetMasterChartPlan } from './datasetMasterChartPlan';
+import type { WorkspaceInputPreThesisChecklist } from './workspaceInputPreThesisChecklist';
 import type { WorkspaceInputState } from './workspaceInputState';
 
 export interface WorkspaceInput {
@@ -20,4 +22,7 @@ export interface WorkspaceInput {
   /** Indian state or union territory of the institution */
   state?: WorkspaceInputState;
   universityName?: string;
+  preThesisChecklist?: WorkspaceInputPreThesisChecklist;
+  researchNotes?: string;
+  datasetMasterChartPlan?: DatasetMasterChartPlan;
 }

@@ -112,7 +112,54 @@ export const WorkspaceWorkflowState = {
   archived: 'archived',
 } as const;
 
-export type WorkspacePreThesisChecklist = {[key: string]: boolean};
+export type DatasetChartSuggestionCategory = typeof DatasetChartSuggestionCategory[keyof typeof DatasetChartSuggestionCategory];
+
+
+export const DatasetChartSuggestionCategory = {
+  must_have: 'must_have',
+  good_to_have: 'good_to_have',
+  nice_to_have: 'nice_to_have',
+} as const;
+
+export type DatasetChartSuggestionConfidence = typeof DatasetChartSuggestionConfidence[keyof typeof DatasetChartSuggestionConfidence];
+
+
+export const DatasetChartSuggestionConfidence = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export interface DatasetChartSuggestion {
+  id: string;
+  name: string;
+  category: DatasetChartSuggestionCategory;
+  reason: string;
+  columnHints: string[];
+  confidence: DatasetChartSuggestionConfidence;
+  sourceHint?: string;
+}
+
+export type DatasetMasterChartPlanFileReadiness = typeof DatasetMasterChartPlanFileReadiness[keyof typeof DatasetMasterChartPlanFileReadiness];
+
+
+export const DatasetMasterChartPlanFileReadiness = {
+  has_marked_files: 'has_marked_files',
+  needs_empty_files: 'needs_empty_files',
+} as const;
+
+export interface DatasetMasterChartPlan {
+  analysisId: string;
+  selectedChartIds: string[];
+  selectedCharts: DatasetChartSuggestion[];
+  fileReadiness: DatasetMasterChartPlanFileReadiness;
+  assistantInstructions?: string;
+}
+
+/**
+ * @nullable
+ */
+export type WorkspacePreThesisChecklist = {[key: string]: boolean} | null;
 
 export interface Workspace {
   id: number;
@@ -144,9 +191,11 @@ export interface Workspace {
   preThesisLockedMd?: string | null;
   /** @nullable */
   preThesisMdHash?: string | null;
+  /** @nullable */
   preThesisChecklist?: WorkspacePreThesisChecklist;
   /** @nullable */
   researchNotes?: string | null;
+  datasetMasterChartPlan?: DatasetMasterChartPlan | null;
   /** @nullable */
   lastLiveVerifiedAt?: string | null;
   /** @nullable */
@@ -183,6 +232,20 @@ export interface ActivityEvent {
   /** @nullable */
   workspaceTitle?: string | null;
   createdAt: string;
+}
+
+export type DatasetPreviewAnalysisCategories = {
+  mustHave: DatasetChartSuggestion[];
+  goodToHave: DatasetChartSuggestion[];
+  niceToHave: DatasetChartSuggestion[];
+};
+
+export interface DatasetPreviewAnalysis {
+  analysisId: string;
+  summary: string;
+  studyDesignSignal: string;
+  categories: DatasetPreviewAnalysisCategories;
+  tokensUsed: number;
 }
 
 /**
@@ -230,6 +293,8 @@ export const WorkspaceInputState = {
   West_Bengal: 'West Bengal',
 } as const;
 
+export type WorkspaceInputPreThesisChecklist = {[key: string]: boolean};
+
 export interface WorkspaceInput {
   /** @minLength 2 */
   title: string;
@@ -243,6 +308,9 @@ export interface WorkspaceInput {
   /** Indian state or union territory of the institution */
   state?: WorkspaceInputState;
   universityName?: string;
+  preThesisChecklist?: WorkspaceInputPreThesisChecklist;
+  researchNotes?: string;
+  datasetMasterChartPlan?: DatasetMasterChartPlan;
 }
 
 export type WorkspaceUpdateState = typeof WorkspaceUpdateState[keyof typeof WorkspaceUpdateState];
@@ -309,10 +377,10 @@ export interface WorkspaceUpdate {
   universityName?: string;
   status?: WorkspaceUpdateStatus;
   /**
-   * AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)
-   * @minimum 0
-   * @maximum 9
-   */
+     * AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)
+     * @minimum 0
+     * @maximum 9
+     */
   humaniserIntensity?: number;
 }
 
@@ -501,7 +569,11 @@ export interface GenerateContentInput {
   prompt: string;
   tone?: GenerateContentInputTone;
   wordLimit?: number;
-  /** Override workspace humaniser intensity for this generation request */
+  /**
+     * Override workspace humaniser intensity for this generation request
+     * @minimum 0
+     * @maximum 9
+     */
   humaniserIntensity?: number;
 }
 
@@ -594,6 +666,28 @@ export interface VaultSummary {
   recentResources: VaultResource[];
 }
 
+export type CoherenceReportIssuesItem = {
+  type?: string;
+  message?: string;
+  sectionTitle?: string;
+};
+
+export type CoherenceReportAbbreviationMap = {[key: string]: string};
+
+export interface CoherenceReport {
+  score: number;
+  issues: CoherenceReportIssuesItem[];
+  abbreviationMap: CoherenceReportAbbreviationMap;
+  citedKeys: string[];
+  unknownKeys: string[];
+}
+
+export interface AutoCompleteValidation {
+  ok: boolean;
+  warnings: string[];
+  errors: string[];
+}
+
 export type ListCollegesParams = {
 domain?: string;
 };
@@ -615,6 +709,15 @@ export const ListWorkspacesStatus = {
   archived: 'archived',
 } as const;
 
+export type AnalyzeDatasetMasterChartsBody = {
+  title?: string;
+  domain?: string;
+  qualification?: string;
+  researchNotes?: string;
+  synopsis?: string;
+  resources?: string[];
+};
+
 export type GetWorkspaceWorkflow200 = {
   workflowState: string;
   allowedTransitions: string[];
@@ -625,7 +728,15 @@ export type TransitionWorkspaceWorkflowBody = {
   reason?: string;
 };
 
+export type StreamPreThesisChatBody = {
+  content: string;
+};
+
 export type ListDepartmentsParams = {
 domain?: string;
+};
+
+export type UploadSectionChatFileBody = {
+  file?: Blob;
 };
 

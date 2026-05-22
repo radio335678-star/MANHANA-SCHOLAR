@@ -20,4 +20,10 @@ export interface WorkspaceUpdate {
   state?: WorkspaceUpdateState;
   universityName?: string;
   status?: WorkspaceUpdateStatus;
+  /**
+     * AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)
+     * @minimum 0
+     * @maximum 9
+     */
+  humaniserIntensity?: number;
 }

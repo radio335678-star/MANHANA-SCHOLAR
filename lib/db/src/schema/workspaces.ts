@@ -40,6 +40,7 @@ export const workspacesTable = pgTable("workspaces", {
   autoCompleteStatus: text("auto_complete_status").default("idle"),
   autoCompleteCurrentSection: integer("auto_complete_current_section"),
   humaniserIntensity: integer("humaniser_intensity").notNull().default(4),
+  datasetMasterChartPlan: jsonb("dataset_master_chart_plan").$type<Record<string, unknown> | null>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

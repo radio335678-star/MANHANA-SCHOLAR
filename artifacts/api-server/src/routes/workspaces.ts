@@ -139,6 +139,11 @@ router.post("/workspaces", requireAuth, async (req, res): Promise<void> => {
       ...(typeof extra.researchNotes === "string" && extra.researchNotes.trim()
         ? { researchNotes: extra.researchNotes.trim() }
         : {}),
+      ...(extra.datasetMasterChartPlan &&
+      typeof extra.datasetMasterChartPlan === "object" &&
+      !Array.isArray(extra.datasetMasterChartPlan)
+        ? { datasetMasterChartPlan: extra.datasetMasterChartPlan as Record<string, unknown> }
+        : {}),
     })
     .returning();
 

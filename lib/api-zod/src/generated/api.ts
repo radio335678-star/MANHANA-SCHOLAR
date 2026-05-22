@@ -130,6 +130,12 @@ export const UpsertProfileResponse = zod.object({
 /**
  * @summary Dashboard summary stats
  */
+export const getDashboardSummaryResponseRecentWorkspacesItemHumaniserIntensityDefault = 4;
+export const getDashboardSummaryResponseRecentWorkspacesItemHumaniserIntensityMin = 0;
+export const getDashboardSummaryResponseRecentWorkspacesItemHumaniserIntensityMax = 9;
+
+
+
 export const GetDashboardSummaryResponse = zod.object({
   "totalWorkspaces": zod.number(),
   "activeWorkspaces": zod.number(),
@@ -155,11 +161,26 @@ export const GetDashboardSummaryResponse = zod.object({
   "preThesisDraftMd": zod.string().nullish(),
   "preThesisLockedMd": zod.string().nullish(),
   "preThesisMdHash": zod.string().nullish(),
-  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).nullish(),
   "researchNotes": zod.string().nullish(),
+  "datasetMasterChartPlan": zod.union([zod.object({
+  "analysisId": zod.string(),
+  "selectedChartIds": zod.array(zod.string()),
+  "selectedCharts": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+})),
+  "fileReadiness": zod.enum(['has_marked_files', 'needs_empty_files']),
+  "assistantInstructions": zod.string().optional()
+}),zod.null()]).optional(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
-  "humaniserIntensity": zod.number().min(0).max(9).optional(),
+  "humaniserIntensity": zod.number().min(getDashboardSummaryResponseRecentWorkspacesItemHumaniserIntensityMin).max(getDashboardSummaryResponseRecentWorkspacesItemHumaniserIntensityMax).default(getDashboardSummaryResponseRecentWorkspacesItemHumaniserIntensityDefault).describe('AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)'),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -195,6 +216,12 @@ export const ListWorkspacesQueryParams = zod.object({
   "status": zod.enum(['active', 'completed', 'archived']).optional()
 })
 
+export const listWorkspacesResponseHumaniserIntensityDefault = 4;
+export const listWorkspacesResponseHumaniserIntensityMin = 0;
+export const listWorkspacesResponseHumaniserIntensityMax = 9;
+
+
+
 export const ListWorkspacesResponseItem = zod.object({
   "id": zod.number(),
   "userId": zod.number(),
@@ -212,11 +239,26 @@ export const ListWorkspacesResponseItem = zod.object({
   "preThesisDraftMd": zod.string().nullish(),
   "preThesisLockedMd": zod.string().nullish(),
   "preThesisMdHash": zod.string().nullish(),
-  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).nullish(),
   "researchNotes": zod.string().nullish(),
+  "datasetMasterChartPlan": zod.union([zod.object({
+  "analysisId": zod.string(),
+  "selectedChartIds": zod.array(zod.string()),
+  "selectedCharts": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+})),
+  "fileReadiness": zod.enum(['has_marked_files', 'needs_empty_files']),
+  "assistantInstructions": zod.string().optional()
+}),zod.null()]).optional(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
-  "humaniserIntensity": zod.number().min(0).max(9).optional(),
+  "humaniserIntensity": zod.number().min(listWorkspacesResponseHumaniserIntensityMin).max(listWorkspacesResponseHumaniserIntensityMax).default(listWorkspacesResponseHumaniserIntensityDefault).describe('AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)'),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -241,7 +283,73 @@ export const CreateWorkspaceBody = zod.object({
   "coGuideName": zod.string().optional().describe('Co-guide or co-supervisor name (optional)'),
   "collegeName": zod.string().optional(),
   "state": zod.enum(['Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal']).optional().describe('Indian state or union territory of the institution'),
-  "universityName": zod.string().optional()
+  "universityName": zod.string().optional(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "researchNotes": zod.string().optional(),
+  "datasetMasterChartPlan": zod.object({
+  "analysisId": zod.string(),
+  "selectedChartIds": zod.array(zod.string()),
+  "selectedCharts": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+})),
+  "fileReadiness": zod.enum(['has_marked_files', 'needs_empty_files']),
+  "assistantInstructions": zod.string().optional()
+}).optional()
+})
+
+
+/**
+ * @summary Analyze research materials for dataset master-chart recommendations
+ */
+export const AnalyzeDatasetMasterChartsBody = zod.object({
+  "title": zod.string().optional(),
+  "domain": zod.string().optional(),
+  "qualification": zod.string().optional(),
+  "researchNotes": zod.string().optional(),
+  "synopsis": zod.string().optional(),
+  "resources": zod.array(zod.string()).optional()
+})
+
+export const AnalyzeDatasetMasterChartsResponse = zod.object({
+  "analysisId": zod.string(),
+  "summary": zod.string(),
+  "studyDesignSignal": zod.string(),
+  "categories": zod.object({
+  "mustHave": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+})),
+  "goodToHave": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+})),
+  "niceToHave": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+}))
+}),
+  "tokensUsed": zod.number()
 })
 
 
@@ -251,6 +359,12 @@ export const CreateWorkspaceBody = zod.object({
 export const GetWorkspaceParams = zod.object({
   "id": zod.coerce.number()
 })
+
+export const getWorkspaceResponseHumaniserIntensityDefault = 4;
+export const getWorkspaceResponseHumaniserIntensityMin = 0;
+export const getWorkspaceResponseHumaniserIntensityMax = 9;
+
+
 
 export const GetWorkspaceResponse = zod.object({
   "id": zod.number(),
@@ -269,11 +383,26 @@ export const GetWorkspaceResponse = zod.object({
   "preThesisDraftMd": zod.string().nullish(),
   "preThesisLockedMd": zod.string().nullish(),
   "preThesisMdHash": zod.string().nullish(),
-  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).nullish(),
   "researchNotes": zod.string().nullish(),
+  "datasetMasterChartPlan": zod.union([zod.object({
+  "analysisId": zod.string(),
+  "selectedChartIds": zod.array(zod.string()),
+  "selectedCharts": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+})),
+  "fileReadiness": zod.enum(['has_marked_files', 'needs_empty_files']),
+  "assistantInstructions": zod.string().optional()
+}),zod.null()]).optional(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
-  "humaniserIntensity": zod.number().min(0).max(9).optional(),
+  "humaniserIntensity": zod.number().min(getWorkspaceResponseHumaniserIntensityMin).max(getWorkspaceResponseHumaniserIntensityMax).default(getWorkspaceResponseHumaniserIntensityDefault).describe('AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)'),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -290,6 +419,9 @@ export const UpdateWorkspaceParams = zod.object({
 
 export const updateWorkspaceBodyTitleMin = 2;
 
+export const updateWorkspaceBodyHumaniserIntensityMin = 0;
+export const updateWorkspaceBodyHumaniserIntensityMax = 9;
+
 
 
 export const UpdateWorkspaceBody = zod.object({
@@ -303,8 +435,14 @@ export const UpdateWorkspaceBody = zod.object({
   "state": zod.enum(['Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal']).optional(),
   "universityName": zod.string().optional(),
   "status": zod.enum(['active', 'completed', 'archived']).optional(),
-  "humaniserIntensity": zod.number().min(0).max(9).optional()
+  "humaniserIntensity": zod.number().min(updateWorkspaceBodyHumaniserIntensityMin).max(updateWorkspaceBodyHumaniserIntensityMax).optional().describe('AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)')
 })
+
+export const updateWorkspaceResponseHumaniserIntensityDefault = 4;
+export const updateWorkspaceResponseHumaniserIntensityMin = 0;
+export const updateWorkspaceResponseHumaniserIntensityMax = 9;
+
+
 
 export const UpdateWorkspaceResponse = zod.object({
   "id": zod.number(),
@@ -323,11 +461,26 @@ export const UpdateWorkspaceResponse = zod.object({
   "preThesisDraftMd": zod.string().nullish(),
   "preThesisLockedMd": zod.string().nullish(),
   "preThesisMdHash": zod.string().nullish(),
-  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).optional(),
+  "preThesisChecklist": zod.record(zod.string(), zod.boolean()).nullish(),
   "researchNotes": zod.string().nullish(),
+  "datasetMasterChartPlan": zod.union([zod.object({
+  "analysisId": zod.string(),
+  "selectedChartIds": zod.array(zod.string()),
+  "selectedCharts": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['must_have', 'good_to_have', 'nice_to_have']),
+  "reason": zod.string(),
+  "columnHints": zod.array(zod.string()),
+  "confidence": zod.enum(['high', 'medium', 'low']),
+  "sourceHint": zod.string().optional()
+})),
+  "fileReadiness": zod.enum(['has_marked_files', 'needs_empty_files']),
+  "assistantInstructions": zod.string().optional()
+}),zod.null()]).optional(),
   "lastLiveVerifiedAt": zod.string().nullish(),
   "lockedAt": zod.string().nullish(),
-  "humaniserIntensity": zod.number().min(0).max(9).optional(),
+  "humaniserIntensity": zod.number().min(updateWorkspaceResponseHumaniserIntensityMin).max(updateWorkspaceResponseHumaniserIntensityMax).default(updateWorkspaceResponseHumaniserIntensityDefault).describe('AI Humaniser intensity level (0 = Raw AI … 9 = Ghost Writer)'),
   "totalSections": zod.number(),
   "completedSections": zod.number(),
   "createdAt": zod.string(),
@@ -421,6 +574,42 @@ export const BuildPreThesisParams = zod.object({
  * @summary Upload synopsis for blueprint generation
  */
 export const UploadPreThesisSynopsisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List pre-thesis assistant messages
+ */
+export const ListPreThesisChatParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Clear pre-thesis assistant conversation
+ */
+export const ClearPreThesisChatParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Stream pre-thesis AI assistant (SSE)
+ */
+export const StreamPreThesisChatParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const StreamPreThesisChatBody = zod.object({
+  "content": zod.string()
+})
+
+
+/**
+ * @summary Undo last AI document revision
+ */
+export const UndoPreThesisRevisionParams = zod.object({
   "id": zod.coerce.number()
 })
 
@@ -621,6 +810,77 @@ export const ReorderSectionsResponse = zod.array(ReorderSectionsResponseItem)
 
 
 /**
+ * @summary Auto-create standard thesis sections with page targets
+ */
+export const ScaffoldSectionsParams = zod.object({
+  "workspaceId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Coherence report for thesis sections
+ */
+export const GetSectionCoherenceParams = zod.object({
+  "workspaceId": zod.coerce.number()
+})
+
+export const GetSectionCoherenceResponse = zod.object({
+  "score": zod.number(),
+  "issues": zod.array(zod.object({
+  "type": zod.string().optional(),
+  "message": zod.string().optional(),
+  "sectionTitle": zod.string().optional()
+})),
+  "abbreviationMap": zod.record(zod.string(), zod.string()),
+  "citedKeys": zod.array(zod.string()),
+  "unknownKeys": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Upload file for section AI assistant
+ */
+export const UploadSectionChatFileParams = zod.object({
+  "workspaceId": zod.coerce.number(),
+  "sectionId": zod.coerce.number()
+})
+
+export const UploadSectionChatFileBody = zod.object({
+  "file": zod.instanceof(File).optional()
+})
+
+
+/**
+ * @summary Validate auto-complete prerequisites
+ */
+export const ValidateAutoCompleteParams = zod.object({
+  "workspaceId": zod.coerce.number()
+})
+
+export const ValidateAutoCompleteResponse = zod.object({
+  "ok": zod.boolean(),
+  "warnings": zod.array(zod.string()),
+  "errors": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Auto-complete entire thesis (SSE)
+ */
+export const StreamAutoCompleteParams = zod.object({
+  "workspaceId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Cancel running auto-complete
+ */
+export const CancelAutoCompleteParams = zod.object({
+  "workspaceId": zod.coerce.number()
+})
+
+
+/**
  * @summary List chat history for a section
  */
 export const ListChatMessagesParams = zod.object({
@@ -682,11 +942,16 @@ export const GenerateSectionContentParams = zod.object({
   "sectionId": zod.coerce.number()
 })
 
+export const generateSectionContentBodyHumaniserIntensityMin = 0;
+export const generateSectionContentBodyHumaniserIntensityMax = 9;
+
+
+
 export const GenerateSectionContentBody = zod.object({
   "prompt": zod.string(),
   "tone": zod.enum(['academic', 'concise', 'detailed', 'formal']).optional(),
   "wordLimit": zod.number().optional(),
-  "humaniserIntensity": zod.number().min(0).max(9).optional()
+  "humaniserIntensity": zod.number().min(generateSectionContentBodyHumaniserIntensityMin).max(generateSectionContentBodyHumaniserIntensityMax).optional().describe('Override workspace humaniser intensity for this generation request')
 })
 
 export const GenerateSectionContentResponse = zod.object({

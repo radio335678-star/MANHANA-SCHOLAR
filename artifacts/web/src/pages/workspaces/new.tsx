@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -16,6 +16,11 @@ import {
 import { INDIAN_STATES_AND_UTS } from "@/lib/indian-states";
 import { PreThesisChecklistGrid } from "@/components/workspace/PreThesisChecklistGrid";
 import { PreThesisBuildProgress } from "@/components/workspace/PreThesisBuildProgress";
+import {
+  DatasetMasterChartAnalyzePanel,
+  type DatasetPreviewAnalysis,
+  type DatasetPlan,
+} from "@/components/workspace/DatasetMasterChartAnalyzePanel";
 import { useWorkspaceBootstrap } from "@/hooks/useWorkspaceBootstrap";
 import { usePreThesisBuildStream } from "@/hooks/usePreThesisBuildStream";
 
@@ -25,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ArrowLeft, Upload, FileText } from "lucide-react";
+import { Loader2, ArrowLeft, Upload, FileText, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,6 +54,17 @@ type Department = { id: number; domain: string; name: string; slug: string };
 
 type BootstrapPhase = "form" | "building";
 
+type AnalysisState = "idle" | "analyzing" | "ready" | "error";
+
+function buildDefaultPlan(analysisId: string): DatasetPlan {
+  return {
+    analysisId,
+    selectedChartIds: [],
+    fileReadiness: "needs_empty_files",
+    assistantInstructions: "",
+  };
+}
+
 export default function NewWorkspace() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -67,8 +83,27 @@ export default function NewWorkspace() {
     jobId: number;
   } | null>(null);
 
+  const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
+  const [analysisResult, setAnalysisResult] = useState<DatasetPreviewAnalysis | null>(null);
+  const [datasetPlan, setDatasetPlan] = useState<DatasetPlan | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
   const synopsisRef = useRef<HTMLInputElement>(null);
   const resourcesRef = useRef<HTMLInputElement>(null);
+
+  // Whether the user has supplied any research materials that warrant AI analysis.
+  const hasMaterials = Boolean(synopsisFile || resourceFiles.length > 0 || researchNotes.trim());
+
+  // Invalidate previous analysis whenever materials or key fields change.
+  const resetAnalysis = useCallback(() => {
+    setAnalysisState("idle");
+    setAnalysisResult(null);
+    setDatasetPlan(null);
+    setAnalyzeError(null);
+  }, []);
+
+  // Create workspace is allowed if: no materials provided (legacy path), OR analysis completed.
+  const canCreate = !hasMaterials || analysisState === "ready";
 
   const { data: domains, isLoading: isDomainsLoading } = useListDomains();
   const { data: qualifications, isLoading: isQualificationsLoading } = useListQualifications();
@@ -110,6 +145,17 @@ export default function NewWorkspace() {
     }));
   }, [title, guideName, coGuideName, synopsisFile]);
 
+  // Invalidate existing analysis whenever the inputs that affect recommendations change.
+  const selectedDomainWatch = form.watch("domain");
+  const qualificationWatch = form.watch("qualification");
+  const departmentIdWatch = form.watch("departmentId");
+  useEffect(() => {
+    if (analysisState !== "idle") {
+      resetAnalysis();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [synopsisFile, resourceFiles.length, researchNotes, selectedDomainWatch, qualificationWatch, departmentIdWatch]);
+
   useEffect(() => {
     if (!profile) return;
     const fillIfEmpty = <K extends keyof WorkspaceValues>(key: K, value: WorkspaceValues[K]) => {
@@ -148,6 +194,48 @@ export default function NewWorkspace() {
     })();
   }, [selectedDomain, getToken]);
 
+  const runAnalysis = async () => {
+    setAnalysisState("analyzing");
+    setAnalyzeError(null);
+
+    try {
+      const token = await getToken();
+      const formValues = form.getValues();
+
+      const fd = new FormData();
+      fd.append("title", formValues.title ?? "");
+      fd.append("domain", formValues.domain ?? "");
+      fd.append("qualification", formValues.qualification ?? "");
+      fd.append("researchNotes", researchNotes);
+
+      if (synopsisFile) fd.append("synopsis", synopsisFile);
+      for (const f of resourceFiles) fd.append("resources", f);
+
+      const res = await fetch("/api/workspaces/dataset-mastercharts/analyze", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(typeof err.error === "string" ? err.error : "Analysis failed");
+      }
+
+      const result = (await res.json()) as DatasetPreviewAnalysis;
+      setAnalysisResult(result);
+
+      // Pre-select all must-have charts by default.
+      const mustHaveIds = result.categories.mustHave.map((c) => c.id);
+      setDatasetPlan({ ...buildDefaultPlan(result.analysisId), selectedChartIds: mustHaveIds });
+      setAnalysisState("ready");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Analysis failed. Please try again.";
+      setAnalyzeError(msg);
+      setAnalysisState("error");
+    }
+  };
+
   const finishAndNavigate = async (workspaceId: number) => {
     queryClient.invalidateQueries({ queryKey: getListWorkspacesQueryKey() });
     await new Promise((r) => setTimeout(r, 800));
@@ -157,6 +245,18 @@ export default function NewWorkspace() {
   const onSubmit = async (data: WorkspaceValues) => {
     setSubmitting(true);
     try {
+      const datasetPlanForSubmit =
+        datasetPlan && analysisResult
+          ? {
+              ...datasetPlan,
+              selectedCharts: [
+                ...analysisResult.categories.mustHave,
+                ...analysisResult.categories.goodToHave,
+                ...analysisResult.categories.niceToHave,
+              ].filter((chart) => datasetPlan.selectedChartIds.includes(chart.id)),
+            }
+          : undefined;
+
       const result = await runBootstrap({
         workspacePayload: {
           title: data.title,
@@ -175,6 +275,7 @@ export default function NewWorkspace() {
         candidateName: data.candidateName?.trim() || profile?.fullName || undefined,
         synopsisFile,
         resourceFiles,
+        datasetPlan: datasetPlanForSubmit,
       });
 
       if (result.warnings.length > 0) {
@@ -502,8 +603,8 @@ export default function NewWorkspace() {
                 <div className="border-b border-border pb-2">
                   <h3 className="font-serif font-medium text-lg">Research Materials (Optional)</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Uploading a synopsis and reference papers improves AI chapter blueprints. Files are saved to
-                    your Research Vault.
+                    Uploading a synopsis and reference papers improves AI chapter blueprints and enables
+                    smart dataset recommendations. Files are saved to your Research Vault.
                   </p>
                 </div>
 
@@ -557,13 +658,72 @@ export default function NewWorkspace() {
                 />
               </div>
 
+              {/* Analyze button — visible once any materials are provided */}
+              {hasMaterials && (
+                <div className="space-y-4">
+                  {analysisState !== "ready" && (
+                    <div className="flex items-start gap-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3">
+                      <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <p className="text-sm font-medium text-foreground">
+                          Analyze materials to unlock dataset recommendations
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          AI will suggest the master-chart datasets you need for your study.
+                          Required before creating the workspace.
+                        </p>
+                        {analyzeError && (
+                          <p className="text-xs text-destructive">{analyzeError}</p>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="gap-2"
+                          disabled={analysisState === "analyzing"}
+                          onClick={() => void runAnalysis()}
+                        >
+                          {analysisState === "analyzing" ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Analyzing…
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              {analysisState === "error" ? "Retry Analyze" : "Analyze"}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {analysisState === "ready" && analysisResult && datasetPlan && (
+                    <DatasetMasterChartAnalyzePanel
+                      analysis={analysisResult}
+                      plan={datasetPlan}
+                      onPlanChange={setDatasetPlan}
+                    />
+                  )}
+                </div>
+              )}
+
               <div className="pt-4 flex justify-end gap-4">
                 <Link href="/workspaces">
                   <Button type="button" variant="ghost">
                     Cancel
                   </Button>
                 </Link>
-                <Button type="submit" disabled={submitting} className="min-w-[160px]">
+                <Button
+                  type="submit"
+                  disabled={submitting || !canCreate}
+                  className="min-w-[160px]"
+                  title={
+                    !canCreate
+                      ? "Analyze your research materials first to unlock workspace creation"
+                      : undefined
+                  }
+                >
                   {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Create Workspace
                 </Button>

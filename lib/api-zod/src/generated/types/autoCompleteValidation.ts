@@ -6,7 +6,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * @nullable
- */
-export type WorkspacePreThesisChecklist = {[key: string]: boolean} | null;
+export interface AutoCompleteValidation {
+  ok: boolean;
+  warnings: string[];
+  errors: string[];
+}

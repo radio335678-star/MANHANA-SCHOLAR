@@ -7,7 +7,7 @@
  * and nice-to-have.
  */
 import { randomUUID } from "node:crypto";
-import { createKimiCompletion } from "./kimiModelRouter";
+import { createKimiCompletion, createKimiCompletionStreaming } from "./kimiModelRouter";
 import { getKimiApiKey } from "./kimiModels";
 import { parseModelJson } from "./kimiJsonParse";
 import { logger } from "./logger";
@@ -39,6 +39,10 @@ export type DatasetPreviewAnalysis = {
   };
   tokensUsed: number;
 };
+
+export type DatasetPreviewStreamEvent =
+  | { type: "status"; content: string }
+  | { type: "thinking"; content: string };
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Prompting
@@ -210,7 +214,7 @@ export async function analyseDatasetMasterCharts(ctx: {
   synopsisText: string;
   resourceTexts: string[];
   researchNotes: string;
-}): Promise<DatasetPreviewAnalysis> {
+}, onEvent?: (event: DatasetPreviewStreamEvent) => void): Promise<DatasetPreviewAnalysis> {
   if (!getKimiApiKey()) {
     throw new Error("AI analysis is not configured. Set KIMI_API_KEY to enable dataset master-chart analysis.");
   }
@@ -218,14 +222,27 @@ export async function analyseDatasetMasterCharts(ctx: {
   const userMessage = buildUserMessage(ctx);
 
   try {
-    const { result, modelUsed } = await createKimiCompletion({
+    onEvent?.({
+      type: "status",
+      content: "Kimi is reading the study design, outcomes, variables, and follow-up requirements.",
+    });
+
+    const completionParams = {
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
+        { role: "system" as const, content: SYSTEM_PROMPT },
+        { role: "user" as const, content: userMessage },
       ],
       max_tokens: 4096,
-      thinking: { type: "enabled" },
-    });
+      thinking: { type: "enabled" as const },
+    };
+
+    const { result, modelUsed } = onEvent
+      ? await createKimiCompletionStreaming(completionParams, (event) => {
+          if (event.type === "thinking" && event.content.trim()) {
+            onEvent({ type: "thinking", content: event.content });
+          }
+        })
+      : await createKimiCompletion(completionParams);
 
     const tokensUsed = result.usage?.total_tokens ?? 0;
     const parsed = parseModelJson<KimiResponseRaw>(result.choices[0]?.message ?? null);

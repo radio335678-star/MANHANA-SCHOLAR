@@ -44,6 +44,7 @@ import type {
   SectionInput,
   SectionReorderInput,
   SectionUpdate,
+  StreamDatasetMasterChartAnalysisBody,
   StreamPreThesisChatBody,
   TransitionWorkspaceWorkflowBody,
   University,
@@ -1016,6 +1017,96 @@ export const useAnalyzeDatasetMasterCharts = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getAnalyzeDatasetMasterChartsMutationOptions(options));
+    }
+
+export const getStreamDatasetMasterChartAnalysisUrl = () => {
+
+
+
+
+  return `/api/workspaces/dataset-mastercharts/analyze/stream`
+}
+
+/**
+ * @summary Stream dataset master-chart analysis progress and final recommendations
+ */
+export const streamDatasetMasterChartAnalysis = async (streamDatasetMasterChartAnalysisBody: StreamDatasetMasterChartAnalysisBody, options?: RequestInit): Promise<string> => {
+    const formData = new FormData();
+if(streamDatasetMasterChartAnalysisBody.title !== undefined) {
+ formData.append(`title`, streamDatasetMasterChartAnalysisBody.title);
+ }
+if(streamDatasetMasterChartAnalysisBody.domain !== undefined) {
+ formData.append(`domain`, streamDatasetMasterChartAnalysisBody.domain);
+ }
+if(streamDatasetMasterChartAnalysisBody.qualification !== undefined) {
+ formData.append(`qualification`, streamDatasetMasterChartAnalysisBody.qualification);
+ }
+if(streamDatasetMasterChartAnalysisBody.researchNotes !== undefined) {
+ formData.append(`researchNotes`, streamDatasetMasterChartAnalysisBody.researchNotes);
+ }
+if(streamDatasetMasterChartAnalysisBody.synopsis !== undefined) {
+ formData.append(`synopsis`, streamDatasetMasterChartAnalysisBody.synopsis);
+ }
+if(streamDatasetMasterChartAnalysisBody.resources !== undefined) {
+ streamDatasetMasterChartAnalysisBody.resources.forEach(value => formData.append(`resources`, value));
+ }
+
+  return customFetch<string>(getStreamDatasetMasterChartAnalysisUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body:
+      formData,
+  }
+);}
+
+
+
+
+export const getStreamDatasetMasterChartAnalysisMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof streamDatasetMasterChartAnalysis>>, TError,{data: BodyType<StreamDatasetMasterChartAnalysisBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof streamDatasetMasterChartAnalysis>>, TError,{data: BodyType<StreamDatasetMasterChartAnalysisBody>}, TContext> => {
+
+const mutationKey = ['streamDatasetMasterChartAnalysis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof streamDatasetMasterChartAnalysis>>, {data: BodyType<StreamDatasetMasterChartAnalysisBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  streamDatasetMasterChartAnalysis(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StreamDatasetMasterChartAnalysisMutationResult = NonNullable<Awaited<ReturnType<typeof streamDatasetMasterChartAnalysis>>>
+    export type StreamDatasetMasterChartAnalysisMutationBody = BodyType<StreamDatasetMasterChartAnalysisBody>
+    export type StreamDatasetMasterChartAnalysisMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Stream dataset master-chart analysis progress and final recommendations
+ */
+export const useStreamDatasetMasterChartAnalysis = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof streamDatasetMasterChartAnalysis>>, TError,{data: BodyType<StreamDatasetMasterChartAnalysisBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof streamDatasetMasterChartAnalysis>>,
+        TError,
+        {data: BodyType<StreamDatasetMasterChartAnalysisBody>},
+        TContext
+      > => {
+      return useMutation(getStreamDatasetMasterChartAnalysisMutationOptions(options));
     }
 
 export const getGetWorkspaceUrl = (id: number,) => {

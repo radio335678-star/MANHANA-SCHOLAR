@@ -718,6 +718,15 @@ export type AnalyzeDatasetMasterChartsBody = {
   resources?: string[];
 };
 
+export type StreamDatasetMasterChartAnalysisBody = {
+  title?: string;
+  domain?: string;
+  qualification?: string;
+  researchNotes?: string;
+  synopsis?: string;
+  resources?: string[];
+};
+
 export type GetWorkspaceWorkflow200 = {
   workflowState: string;
   allowedTransitions: string[];

@@ -48,6 +48,7 @@ export * from './sectionType';
 export * from './sectionUpdate';
 export * from './sectionUpdateStatus';
 export * from './sectionUpdateType';
+export * from './streamDatasetMasterChartAnalysisBody';
 export * from './streamPreThesisChatBody';
 export * from './transitionWorkspaceWorkflowBody';
 export * from './university';

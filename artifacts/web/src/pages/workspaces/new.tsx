@@ -87,6 +87,7 @@ export default function NewWorkspace() {
   const [analysisResult, setAnalysisResult] = useState<DatasetPreviewAnalysis | null>(null);
   const [datasetPlan, setDatasetPlan] = useState<DatasetPlan | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [analysisLog, setAnalysisLog] = useState<string[]>([]);
 
   const synopsisRef = useRef<HTMLInputElement>(null);
   const resourcesRef = useRef<HTMLInputElement>(null);
@@ -100,6 +101,7 @@ export default function NewWorkspace() {
     setAnalysisResult(null);
     setDatasetPlan(null);
     setAnalyzeError(null);
+    setAnalysisLog([]);
   }, []);
 
   // Create workspace is allowed if: no materials provided (legacy path), OR analysis completed.
@@ -197,6 +199,48 @@ export default function NewWorkspace() {
   const runAnalysis = async () => {
     setAnalysisState("analyzing");
     setAnalyzeError(null);
+    setAnalysisLog([
+      "Deep analysis started. This can take 2-4 minutes — please be patient.",
+    ]);
+
+    const appendAnalysisLog = (message: string) => {
+      const clean = message.replace(/\s+/g, " ").trim();
+      if (!clean) return;
+      setAnalysisLog((prev) => {
+        if (prev[prev.length - 1] === clean) return prev;
+        return [...prev, clean].slice(-8);
+      });
+    };
+
+    const handleSseBlock = (block: string): DatasetPreviewAnalysis | null => {
+      const eventName = block
+        .split("\n")
+        .find((line) => line.startsWith("event:"))
+        ?.replace(/^event:\s*/, "")
+        .trim();
+      const dataLine = block
+        .split("\n")
+        .find((line) => line.startsWith("data:"))
+        ?.replace(/^data:\s*/, "");
+      if (!eventName || !dataLine) return null;
+
+      const payload = JSON.parse(dataLine) as {
+        content?: string;
+        error?: string;
+      } & DatasetPreviewAnalysis;
+
+      if (eventName === "status" || eventName === "thinking") {
+        appendAnalysisLog(payload.content ?? "");
+        return null;
+      }
+      if (eventName === "error") {
+        throw new Error(payload.error ?? "Analysis failed");
+      }
+      if (eventName === "done") {
+        return payload as DatasetPreviewAnalysis;
+      }
+      return null;
+    };
 
     try {
       const token = await getToken();
@@ -211,18 +255,46 @@ export default function NewWorkspace() {
       if (synopsisFile) fd.append("synopsis", synopsisFile);
       for (const f of resourceFiles) fd.append("resources", f);
 
-      const res = await fetch("/api/workspaces/dataset-mastercharts/analyze", {
+      const res = await fetch("/api/workspaces/dataset-mastercharts/analyze/stream", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(typeof err.error === "string" ? err.error : "Analysis failed");
+        throw new Error("Analysis failed");
       }
 
-      const result = (await res.json()) as DatasetPreviewAnalysis;
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Analysis stream could not be opened.");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let result: DatasetPreviewAnalysis | null = null;
+
+      while (!result) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary >= 0) {
+          const block = buffer.slice(0, boundary).trim();
+          buffer = buffer.slice(boundary + 2);
+          if (block) {
+            const parsed = handleSseBlock(block);
+            if (parsed) {
+              result = parsed;
+              break;
+            }
+          }
+          boundary = buffer.indexOf("\n\n");
+        }
+
+        if (done) break;
+      }
+
+      if (!result) throw new Error("Analysis ended before recommendations were ready.");
+
       setAnalysisResult(result);
 
       // Pre-select all must-have charts by default.
@@ -672,6 +744,9 @@ export default function NewWorkspace() {
                           AI will suggest the master-chart datasets you need for your study.
                           Required before creating the workspace.
                         </p>
+                        <p className="text-xs font-medium text-primary">
+                          This will take 2-4 mins for deep analysis. Please be patient.
+                        </p>
                         {analyzeError && (
                           <p className="text-xs text-destructive">{analyzeError}</p>
                         )}
@@ -694,6 +769,21 @@ export default function NewWorkspace() {
                             </>
                           )}
                         </Button>
+                        {analysisState === "analyzing" && analysisLog.length > 0 && (
+                          <div className="mt-3 rounded-lg border border-border bg-card/80 p-3 shadow-sm">
+                            <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                              <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                              Live AI analysis
+                            </div>
+                            <div className="mt-2 space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                              {analysisLog.map((line, idx) => (
+                                <p key={`${idx}-${line}`} className="text-xs text-muted-foreground leading-relaxed">
+                                  {line}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

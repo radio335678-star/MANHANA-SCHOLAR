@@ -240,6 +240,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /workspaces/dataset-mastercharts/analyze/stream:
+    post:
+      operationId: streamDatasetMasterChartAnalysis
+      summary: Stream dataset master-chart analysis progress and final recommendations
+      tags: [workspaces]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                domain:
+                  type: string
+                qualification:
+                  type: string
+                researchNotes:
+                  type: string
+                synopsis:
+                  type: string
+                resources:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: SSE stream with status, thinking, done, and error events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
   /workspaces/{id}:
     get:
       operationId: getWorkspace

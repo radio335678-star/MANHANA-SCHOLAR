@@ -354,6 +354,19 @@ export const AnalyzeDatasetMasterChartsResponse = zod.object({
 
 
 /**
+ * @summary Stream dataset master-chart analysis progress and final recommendations
+ */
+export const StreamDatasetMasterChartAnalysisBody = zod.object({
+  "title": zod.string().optional(),
+  "domain": zod.string().optional(),
+  "qualification": zod.string().optional(),
+  "researchNotes": zod.string().optional(),
+  "synopsis": zod.string().optional(),
+  "resources": zod.array(zod.string()).optional()
+})
+
+
+/**
  * @summary Get a workspace
  */
 export const GetWorkspaceParams = zod.object({

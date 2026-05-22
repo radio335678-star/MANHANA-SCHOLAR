@@ -1,3 +1,17 @@
+export type LiteratureRef = {
+  serialNo: number;
+  title: string;
+  authors: string;
+  year?: number | null;
+  journal?: string;
+  doi?: string;
+  url?: string;
+  vancouverCitation: string;
+  relevanceNote?: string;
+  vaultResourceId?: number;
+  sourceType: "literature";
+};
+
 /** Client-side mirror of PreThesisDocumentV2 (API resultJson). */
 export type PreThesisDocumentV2 = {
   buildVersion: 2;
@@ -55,6 +69,7 @@ export type PreThesisDocumentV2 = {
     fetchedAt?: string;
   }>;
   warnings?: string[];
+  literatureReferences?: LiteratureRef[];
 };
 
 export function parsePreThesisDocument(

@@ -538,7 +538,7 @@ export function PreThesisPanel({
               className={cn("gap-2 transition-opacity", buildBlurred && "opacity-30 cursor-not-allowed")}
             >
               {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-              Build Pre-Thesis (6 agents)
+              Build Pre-Thesis (8 agents)
             </Button>
 
             {/* "Build complete" indicator replaces the blurred button's meaning */}

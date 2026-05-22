@@ -441,7 +441,7 @@ paths:
   /workspaces/{id}/pre-thesis/build:
     post:
       operationId: buildPreThesis
-      summary: Start 4-agent pre-thesis build job
+      summary: Start 8-agent pre-thesis build job
       tags: [pre-thesis]
       parameters:
         - in: path
@@ -1367,6 +1367,52 @@ components:
           enum: [has_marked_files, needs_empty_files]
         assistantInstructions:
           type: string
+
+    # ─── LITERATURE REFERENCES (Agent 7) ────────────────────────────────────
+    LiteratureRef:
+      type: object
+      required: [serialNo, title, authors, vancouverCitation, sourceType]
+      properties:
+        serialNo:
+          type: integer
+        title:
+          type: string
+        authors:
+          type: string
+        year:
+          type: integer
+          nullable: true
+        journal:
+          type: string
+        doi:
+          type: string
+        url:
+          type: string
+        vancouverCitation:
+          type: string
+        relevanceNote:
+          type: string
+        vaultResourceId:
+          type: integer
+        sourceType:
+          type: string
+          enum: [literature]
+
+    # ─── MASTER CHART BOOTSTRAP (Agent 8) ───────────────────────────────────
+    MasterChartBootstrapEntry:
+      type: object
+      required: [chartId, name, serialNo, version]
+      properties:
+        chartId:
+          type: integer
+        name:
+          type: string
+        serialNo:
+          type: integer
+        version:
+          type: integer
+        vaultResourceId:
+          type: integer
 
     # ─── WORKSPACE ───────────────────────────────────────────────────────────
     Workspace:

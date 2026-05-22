@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileText } from "lucide-react";
+import { FileText, BookOpen, ExternalLink } from "lucide-react";
 import { PreThesisDocumentPreview } from "./PreThesisDocumentPreview";
 import { parsePreThesisDocument, type PreThesisDocumentV2 } from "@/lib/preThesisDocumentTypes";
 
@@ -24,8 +24,9 @@ export function derivePreThesisViews(data: PreThesisPreviewData) {
   const formattingRows = doc?.formattingSpecs.rows ?? [];
   const partBChapters = doc?.partB.chapters ?? [];
   const docSources = doc?.sources ?? [];
+  const literatureReferences = doc?.literatureReferences ?? [];
 
-  return { doc, chapterBlueprints, formattingRows, partBChapters, docSources };
+  return { doc, chapterBlueprints, formattingRows, partBChapters, docSources, literatureReferences };
 }
 
 export function PreThesisPreviewTabs({
@@ -34,7 +35,7 @@ export function PreThesisPreviewTabs({
   onPreviewTabChange,
   scrollAnchor,
 }: PreThesisPreviewTabsProps) {
-  const { doc, chapterBlueprints, formattingRows, partBChapters, docSources } =
+  const { doc, chapterBlueprints, formattingRows, partBChapters, docSources, literatureReferences } =
     derivePreThesisViews(data);
 
   const sourceCount = data.sources.length || docSources.length;
@@ -49,6 +50,13 @@ export function PreThesisPreviewTabs({
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="formatting">Formatting</TabsTrigger>
         <TabsTrigger value="chapters">Chapters</TabsTrigger>
+        <TabsTrigger value="references" className="gap-1">
+          <BookOpen className="w-3.5 h-3.5" />
+          References
+          {literatureReferences.length > 0 && (
+            <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-1">{literatureReferences.length}</Badge>
+          )}
+        </TabsTrigger>
         <TabsTrigger value="sources">Sources</TabsTrigger>
       </TabsList>
 
@@ -119,6 +127,55 @@ export function PreThesisPreviewTabs({
           ))
         ) : (
           <p className="text-sm text-muted-foreground">No chapter blueprints yet.</p>
+        )}
+      </TabsContent>
+
+      <TabsContent value="references" className="mt-4 space-y-3 max-h-[500px] overflow-y-auto">
+        {literatureReferences.length > 0 ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              {literatureReferences.length} references collected by AI from web search on your thesis topic.
+              Saved to Research Vault.
+            </p>
+            {literatureReferences.map((ref) => (
+              <div
+                key={ref.serialNo}
+                id={`pt-literature-ref-${ref.serialNo}`}
+                className="border rounded-lg p-3 space-y-1.5 text-sm"
+              >
+                <div className="flex items-start gap-2">
+                  <span className="font-mono text-xs text-muted-foreground w-6 shrink-0">{ref.serialNo}.</span>
+                  <div className="flex-1">
+                    <p className="font-medium leading-snug">{ref.title}</p>
+                    <p className="text-xs text-muted-foreground">{ref.authors}{ref.year ? `, ${ref.year}` : ""}{ref.journal ? ` — ${ref.journal}` : ""}</p>
+                    <p className="text-xs text-foreground/70 mt-1 italic">{ref.vancouverCitation}</p>
+                    {ref.relevanceNote && (
+                      <p className="text-xs text-muted-foreground mt-1 bg-muted/40 px-2 py-1 rounded">{ref.relevanceNote}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-1.5">
+                      {ref.url && (
+                        <a href={ref.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                          <ExternalLink className="w-3 h-3" /> View source
+                        </a>
+                      )}
+                      {ref.doi && (
+                        <a href={`https://doi.org/${ref.doi}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                          <ExternalLink className="w-3 h-3" /> DOI
+                        </a>
+                      )}
+                      {ref.vaultResourceId && (
+                        <Badge variant="secondary" className="text-[10px]">Saved to Vault</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground py-8 text-center">
+            No literature references yet. Run the pre-thesis build to collect topic-specific citations.
+          </p>
         )}
       </TabsContent>
 

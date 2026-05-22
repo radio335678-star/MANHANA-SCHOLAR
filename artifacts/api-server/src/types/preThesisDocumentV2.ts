@@ -1,5 +1,19 @@
 import { z } from "zod";
 
+export const LiteratureRefSchema = z.object({
+  serialNo: z.number(),
+  title: z.string(),
+  authors: z.string(),
+  year: z.number().nullable().optional(),
+  journal: z.string().optional(),
+  doi: z.string().optional(),
+  url: z.string().optional(),
+  vancouverCitation: z.string(),
+  relevanceNote: z.string().optional(),
+  vaultResourceId: z.number().optional(),
+  sourceType: z.literal("literature").default("literature"),
+});
+
 export const PreliminaryPageSchema = z.object({
   page: z.string(),
   title: z.string(),
@@ -95,8 +109,10 @@ export const PreThesisDocumentV2Schema = z.object({
   rulesJson: z.record(z.string(), z.unknown()),
   sources: z.array(SourceRefSchema),
   warnings: z.array(z.string()).default([]),
+  literatureReferences: z.array(LiteratureRefSchema).default([]),
 });
 
 export type PreThesisDocumentV2 = z.infer<typeof PreThesisDocumentV2Schema>;
 export type ChapterBlueprint = z.infer<typeof ChapterBlueprintSchema>;
 export type SourceRef = z.infer<typeof SourceRefSchema>;
+export type LiteratureRef = z.infer<typeof LiteratureRefSchema>;

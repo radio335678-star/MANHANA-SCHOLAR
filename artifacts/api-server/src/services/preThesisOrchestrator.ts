@@ -26,6 +26,8 @@ import {
 import type { PreThesisDocumentV2, ChapterBlueprint } from "../types/preThesisDocumentV2";
 import { PreThesisDocumentV2Schema } from "../types/preThesisDocumentV2";
 import { computeCompletenessScore } from "./preThesisCompleteness";
+import { collectLiteratureReferences } from "./preThesisLiteratureCollector";
+import { bootstrapMasterCharts } from "./masterChartBootstrap";
 
 export type TelemetryEvent = {
   type: string;
@@ -375,13 +377,69 @@ Expand each chapter with study-specific bullets (aims, sample size, variables, e
       warnings.push("Document validation had minor issues — compiled with defaults");
     }
 
-    const md = compilePreThesisMdV2(parsed.success ? parsed.data : doc);
-
-    // --- Agent 6: QualityCheck ---
-    push("agent_start", "Agent 6: Quality Check", 90, "agent_6");
+    // --- Agent 7: Literature Reference Collector ---
+    push("agent_start", "Agent 7: Literature Reference Collector", 82, "agent_7");
     await db
       .update(preThesisBuildJobsTable)
-      .set({ currentAgent: "agent_6" })
+      .set({ currentAgent: "agent_7" })
+      .where(eq(preThesisBuildJobsTable.id, jobId));
+
+    let literatureReferences: PreThesisDocumentV2["literatureReferences"] = [];
+    try {
+      literatureReferences = await collectLiteratureReferences(
+        {
+          workspaceId,
+          userId: ws.userId,
+          title: ws.title,
+          domain: ws.domain,
+          qualification: ws.qualification,
+          departmentName: department?.name ?? null,
+          synopsisText: ws.synopsisText,
+          researchNotes: ws.researchNotes,
+        },
+        (msg) => push("literature_search", msg, 85, "agent_7"),
+      );
+      doc.literatureReferences = literatureReferences;
+      push("literature_found", `${literatureReferences.length} references collected`, 88, "agent_7");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Literature collection failed";
+      warnings.push(`Agent 7 warning: ${msg}`);
+      push("literature_warn", `Literature collection skipped: ${msg}`, 88, "agent_7");
+    }
+
+    // Recompile markdown now that literatureReferences is merged into doc
+    const md = compilePreThesisMdV2(parsed.success ? { ...parsed.data, literatureReferences } : doc);
+
+    // --- Agent 8: Master Chart Shell Builder (only when needs_empty_files) ---
+    push("agent_start", "Agent 8: Master Chart Shell Builder", 88, "agent_8");
+    await db
+      .update(preThesisBuildJobsTable)
+      .set({ currentAgent: "agent_8" })
+      .where(eq(preThesisBuildJobsTable.id, jobId));
+
+    let masterChartBootstrapResult: Awaited<ReturnType<typeof bootstrapMasterCharts>> = [];
+    try {
+      const plan = ws.datasetMasterChartPlan as Record<string, unknown> | null;
+      masterChartBootstrapResult = await bootstrapMasterCharts(
+        { workspaceId, userId: ws.userId, plan },
+        (msg) => push("chart_shell_created", msg, 91, "agent_8"),
+      );
+      if (masterChartBootstrapResult.length > 0) {
+        push("chart_bootstrap_complete", `${masterChartBootstrapResult.length} empty master chart shells created`, 94, "agent_8");
+      } else {
+        push("chart_bootstrap_skipped", "Chart shell builder skipped (no selection or has_marked_files)", 94, "agent_8");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Chart bootstrap failed";
+      warnings.push(`Agent 8 warning: ${msg}`);
+      push("chart_bootstrap_warn", `Chart shell builder skipped: ${msg}`, 94, "agent_8");
+    }
+
+    // --- Final Quality Check & Persist ---
+    push("agent_start", "Quality Check & Persist", 94, "agent_9");
+    await db
+      .update(preThesisBuildJobsTable)
+      .set({ currentAgent: "agent_9" })
       .where(eq(preThesisBuildJobsTable.id, jobId));
 
     const completenessScore = computeCompletenessScore(doc, liveResults.length);
@@ -409,13 +467,18 @@ Expand each chapter with study-specific bullets (aims, sample size, variables, e
       await uploadText(preThesisDraftPath(workspaceId), md);
     }
 
+    const resultJson: Record<string, unknown> = {
+      ...(doc as unknown as Record<string, unknown>),
+      masterChartBootstrap: masterChartBootstrapResult,
+    };
+
     await db
       .update(preThesisBuildJobsTable)
       .set({
         status: "completed",
         currentAgent: null,
         completedAt: new Date(),
-        resultJson: doc as unknown as Record<string, unknown>,
+        resultJson,
         warnings,
         completenessScore,
       })
@@ -431,15 +494,15 @@ Expand each chapter with study-specific bullets (aims, sample size, variables, e
     await db.insert(preThesisDocumentRevisionsTable).values({
       workspaceId,
       revision: (lastRev?.revision ?? 0) + 1,
-      resultJson: doc as unknown as Record<string, unknown>,
+      resultJson,
       draftMd: md,
       completenessScore,
       createdByUserId: ws.userId,
       source: "build",
-      summary: "Initial 6-agent build",
+      summary: "8-agent build with literature references and chart shells",
     });
 
-    push("complete", "Pre-thesis reference document compiled (v2)", 100, "agent_6");
+    push("complete", "Pre-thesis reference document compiled (v2, 8 agents)", 100, "agent_9");
   } catch (err) {
     const message = err instanceof Error ? err.message : "Build failed";
     emit(events, "error", message);

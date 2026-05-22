@@ -11,7 +11,9 @@ const AGENTS = [
   { id: "agent_3", label: "Chapter Blueprint Writer", step: 3 },
   { id: "agent_4", label: "Guidelines Validator", step: 4 },
   { id: "agent_5", label: "Reference MD Compiler", step: 5 },
-  { id: "agent_6", label: "Quality Check", step: 6 },
+  { id: "agent_7", label: "Literature Reference Collector", step: 6 },
+  { id: "agent_8", label: "Master Chart Shell Builder", step: 7 },
+  { id: "agent_9", label: "Quality Check & Persist", step: 8 },
 ] as const;
 
 function agentStatus(
@@ -66,8 +68,8 @@ export function PreThesisBuildProgress({
         </CardDescription>
         {building && !error && (
           <p className="text-sm text-muted-foreground">
-            Note: Deep analysis can take 4-5 minutes. Please be patient while we prepare your
-            pre-thesis.
+            Note: Deep analysis including literature search can take 5-7 minutes. Please be patient
+            while 8 AI agents prepare your pre-thesis.
           </p>
         )}
       </CardHeader>

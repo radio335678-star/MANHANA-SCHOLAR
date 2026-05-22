@@ -1710,7 +1710,7 @@ export const getBuildPreThesisUrl = (id: number,) => {
 }
 
 /**
- * @summary Start 4-agent pre-thesis build job
+ * @summary Start 8-agent pre-thesis build job
  */
 export const buildPreThesis = async (id: number, options?: RequestInit): Promise<void> => {
 
@@ -1758,7 +1758,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type BuildPreThesisMutationError = ErrorType<unknown>
 
     /**
- * @summary Start 4-agent pre-thesis build job
+ * @summary Start 8-agent pre-thesis build job
  */
 export const useBuildPreThesis = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof buildPreThesis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}

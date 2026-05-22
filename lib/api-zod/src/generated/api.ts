@@ -576,7 +576,7 @@ export const PatchPreThesisParams = zod.object({
 
 
 /**
- * @summary Start 4-agent pre-thesis build job
+ * @summary Start 8-agent pre-thesis build job
  */
 export const BuildPreThesisParams = zod.object({
   "id": zod.coerce.number()

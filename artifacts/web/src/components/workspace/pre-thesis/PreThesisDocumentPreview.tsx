@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { PreThesisDocumentV2 } from "@/lib/preThesisDocumentTypes";
+import { ExternalLink } from "lucide-react";
 import "./preThesisDocumentTheme.css";
 
 type PreThesisDocumentPreviewProps = {
@@ -183,6 +184,36 @@ export function PreThesisDocumentPreview({ document: doc, scrollToAnchor }: PreT
             </>
           )}
         </section>
+
+        {doc.literatureReferences && doc.literatureReferences.length > 0 && (
+          <section className="pre-thesis-page" id="pt-literature-references">
+            <h2 className="pre-thesis-h2">Literature References (Topic Research)</h2>
+            <p className="pre-thesis-note">
+              {doc.literatureReferences.length} references collected via AI-assisted web search on thesis topic.
+            </p>
+            <ol className="pre-thesis-ul" style={{ listStyleType: "none", paddingLeft: 0 }}>
+              {doc.literatureReferences.map((ref) => (
+                <li key={ref.serialNo} id={`pt-literature-ref-${ref.serialNo}`} className="mb-3">
+                  <span className="font-medium">{ref.serialNo}. </span>
+                  <span>{ref.vancouverCitation}</span>
+                  {(ref.url || ref.doi) && (
+                    <a
+                      href={ref.doi ? `https://doi.org/${ref.doi}` : ref.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="ml-2 text-primary inline-flex items-center gap-0.5 text-[9pt]"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {ref.relevanceNote && (
+                    <p className="text-[9pt] text-muted-foreground ml-4 mt-0.5 italic">{ref.relevanceNote}</p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
     </div>
   );

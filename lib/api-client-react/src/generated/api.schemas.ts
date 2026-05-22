@@ -248,6 +248,35 @@ export interface DatasetPreviewAnalysis {
   tokensUsed: number;
 }
 
+export type LiteratureRefSourceType = typeof LiteratureRefSourceType[keyof typeof LiteratureRefSourceType];
+
+
+export const LiteratureRefSourceType = {
+  literature: 'literature',
+} as const;
+
+export interface LiteratureRef {
+  serialNo: number;
+  title: string;
+  authors: string;
+  year?: number | null;
+  journal?: string;
+  doi?: string;
+  url?: string;
+  vancouverCitation: string;
+  relevanceNote?: string;
+  vaultResourceId?: number;
+  sourceType: LiteratureRefSourceType;
+}
+
+export interface MasterChartBootstrapEntry {
+  chartId: number;
+  name: string;
+  serialNo: number;
+  version: number;
+  vaultResourceId?: number;
+}
+
 /**
  * Indian state or union territory of the institution
  */

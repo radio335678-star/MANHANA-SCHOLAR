@@ -51,12 +51,20 @@ import {
   getWorkbookSheets,
 } from "@/lib/masterChartTypes";
 
+type ChartStudyDesign = {
+  bootstrapSerialNo?: number;
+  analysisId?: string;
+  createdByAgent?: string;
+  fileReadiness?: string;
+};
+
 type ChartRow = {
   id: number;
   name: string;
   mode: string;
   currentVersion: number;
   createdAt: string;
+  studyDesign?: ChartStudyDesign | null;
 };
 
 type LayoutMode = "split" | "fullscreen" | "collapsed";
@@ -1102,6 +1110,15 @@ export function MasterChartPanel({
         </Button>
       </div>
 
+      {charts.some((c) => c.studyDesign?.createdByAgent === "agent_8") && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+          <span>
+            <strong>{charts.filter((c) => c.studyDesign?.createdByAgent === "agent_8").length} empty master chart{charts.filter((c) => c.studyDesign?.createdByAgent === "agent_8").length !== 1 ? "s" : ""}</strong> created from your analyze plan — ready to fill in.
+          </span>
+        </div>
+      )}
+
       {charts.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {charts.map((c) => (
@@ -1116,6 +1133,9 @@ export function MasterChartPanel({
               onClick={() => setSelectedId(c.id)}
             >
               <Table2 className="w-3 h-3" />
+              {c.studyDesign?.bootstrapSerialNo != null && (
+                <span className="text-[10px] font-mono opacity-70">#{c.studyDesign.bootstrapSerialNo}</span>
+              )}
               <span className="max-w-[120px] truncate">{c.name}</span>
               <Badge
                 variant={selectedId === c.id ? "secondary" : "outline"}

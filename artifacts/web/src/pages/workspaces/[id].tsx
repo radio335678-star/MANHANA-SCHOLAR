@@ -88,7 +88,7 @@ function WorkspaceNextSteps({
     {
       num: 1,
       label: "Lock-In Pre-Thesis",
-      sublabel: "Build with 6 agents, review, then lock in",
+      sublabel: "Build with 8 agents, review, then lock in",
       done: isPreThesisLocked,
       tab: "pre-thesis",
       actionLabel: isPreThesisLocked ? "Locked" : "Go",

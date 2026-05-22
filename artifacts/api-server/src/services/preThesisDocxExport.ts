@@ -147,6 +147,42 @@ export async function exportPreThesisDocx(doc: PreThesisDocumentV2): Promise<Buf
     }
   }
 
+  if (doc.literatureReferences && doc.literatureReferences.length > 0) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: "LITERATURE REFERENCES (Topic Research)", bold: true, font: "Arial" })],
+      }),
+    );
+    children.push(
+      new Paragraph({
+        children: [new TextRun({
+          text: `${doc.literatureReferences.length} references collected via AI-assisted literature search.`,
+          font: "Arial",
+          size: 20,
+          italics: true,
+        })],
+      }),
+    );
+    for (const ref of doc.literatureReferences) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${ref.serialNo}. `, bold: true, font: "Arial", size: 22 }),
+            new TextRun({ text: ref.vancouverCitation, font: "Arial", size: 22 }),
+          ],
+        }),
+      );
+      if (ref.relevanceNote) {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: `   Relevance: ${ref.relevanceNote}`, font: "Arial", size: 20, italics: true, color: "666666" })],
+          }),
+        );
+      }
+    }
+  }
+
   const document = new Document({
     sections: [{ properties: {}, children }],
   });

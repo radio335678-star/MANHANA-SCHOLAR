@@ -98,6 +98,20 @@ export function compilePreThesisMdV2(doc: PreThesisDocumentV2): string {
     }
   }
 
+  if (doc.literatureReferences && doc.literatureReferences.length > 0) {
+    lines.push("LITERATURE REFERENCES (Topic Research)");
+    lines.push(
+      `${doc.literatureReferences.length} references collected via AI-assisted web search on thesis topic.`,
+    );
+    lines.push("| Sr.No | Vancouver Citation | Relevance |");
+    lines.push("|-------|-------------------|-----------|");
+    for (const ref of doc.literatureReferences) {
+      const relevance = ref.relevanceNote ?? "—";
+      lines.push(`| ${ref.serialNo} | ${ref.vancouverCitation} | ${relevance} |`);
+    }
+    lines.push("");
+  }
+
   lines.push("### LOCKED RESEARCH CONTEXT");
   lines.push(doc.lockedResearchContext || "_No additional research notes provided._");
 

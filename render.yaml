@@ -43,4 +43,7 @@ services:
         sync: false
       - key: KIMI_FALLBACK_MODELS
         sync: false
+      # Override dataset agent timeout (ms). Default 600000 (10 min). Raise if large charts still time out.
+      - key: DATASET_AGENT_TIMEOUT_MS
+        sync: false
       # Optional: CORS_ALLOWED_ORIGINS=https://manhana-scholar.vercel.app

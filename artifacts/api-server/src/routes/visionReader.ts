@@ -212,6 +212,7 @@ router.get(
       .select({
         id: visionReaderSessionsTable.id,
         filesInfo: visionReaderSessionsTable.filesInfo,
+        outputText: visionReaderSessionsTable.outputText,
         userPrompt: visionReaderSessionsTable.userPrompt,
         tokensUsed: visionReaderSessionsTable.tokensUsed,
         modelUsed: visionReaderSessionsTable.modelUsed,
@@ -225,6 +226,8 @@ router.get(
     res.json(sessions.map((s) => ({
       id: s.id,
       filesInfo: s.filesInfo ?? [],
+      outputText: s.outputText ?? "",
+      outputPreview: s.outputText ? s.outputText.slice(0, 120) : "",
       userPrompt: s.userPrompt,
       tokensUsed: s.tokensUsed,
       modelUsed: s.modelUsed,

@@ -52,7 +52,7 @@ import type { WorkbookSpec } from "./sheetGeneration";
 import { logger } from "./logger";
 
 const MAX_TOOL_ROUNDS = 6;
-const AGENT_TIMEOUT_MS = Number(process.env.DATASET_AGENT_TIMEOUT_MS) || 300_000;
+const AGENT_TIMEOUT_MS = Number(process.env.DATASET_AGENT_TIMEOUT_MS) || 600_000;
 
 export type DatasetAgentEvent =
   | { type: "thinking"; content: string }
@@ -854,6 +854,45 @@ export async function runDatasetAgentChat(params: {
       onEvent({ type: "token", content: fallbackMsg });
     } else {
       throw err;
+    }
+  }
+
+  // End-of-turn auto-commit: if the workbook changed during this run but was never committed
+  // (e.g. edit-only turns where the agent patches columns without an explicit commit_version call),
+  // save a version now so every user message results in a persisted Excel state.
+  if (!versionCommitted && workingWorkbook !== null) {
+    const initColCount = workingWorkbookInit
+      ? workingWorkbookInit.sheets.reduce((n, s) => n + s.columns.length, 0)
+      : -1;
+    const newColCount = workingWorkbook.sheets.reduce((n, s) => n + s.columns.length, 0);
+    const initRowCount = workingWorkbookInit
+      ? workingWorkbookInit.sheets.reduce((n, s) => n + (s.sampleRows?.length ?? 0), 0)
+      : -1;
+    const newRowCount = workingWorkbook.sheets.reduce((n, s) => n + (s.sampleRows?.length ?? 0), 0);
+    const initSheetCount = workingWorkbookInit?.sheets.length ?? -1;
+    const newSheetCount = workingWorkbook.sheets.length;
+    const workbookChanged =
+      newSheetCount !== initSheetCount ||
+      newColCount !== initColCount ||
+      newRowCount !== initRowCount;
+
+    if (workbookChanged) {
+      const validation = validateWorkbook(workingWorkbook);
+      if (validation.valid) {
+        try {
+          await commitVersion(
+            workspaceId,
+            chartId,
+            userId,
+            workingWorkbook,
+            "Auto-saved after chat turn",
+            onEvent,
+          );
+          versionCommitted = true;
+        } catch (commitErr) {
+          logger.warn({ commitErr, chartId }, "End-of-turn auto-commit failed — changes not persisted");
+        }
+      }
     }
   }
 

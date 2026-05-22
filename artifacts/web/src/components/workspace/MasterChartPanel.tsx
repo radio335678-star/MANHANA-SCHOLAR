@@ -133,6 +133,7 @@ export function MasterChartPanel({
   const [visionTabHighlight, setVisionTabHighlight] = useState(false);
   const panelTabsRef = useRef<HTMLDivElement>(null);
   const visionHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timeoutPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Streaming agent hook
   const {
@@ -195,6 +196,7 @@ export function MasterChartPanel({
   useEffect(() => {
     return () => {
       if (visionHighlightTimerRef.current) clearTimeout(visionHighlightTimerRef.current);
+      if (timeoutPollRef.current) clearInterval(timeoutPollRef.current);
     };
   }, []);
 
@@ -391,13 +393,43 @@ export function MasterChartPanel({
     }
   };
 
+  const loadChatHistory = useCallback(
+    async (chartId: number) => {
+      try {
+        const token = await getToken();
+        const res = await fetch(
+          `/api/workspaces/${workspaceId}/master-charts/${chartId}/chat`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) return;
+        const rows = (await res.json()) as DatasetChatMessage[];
+        setMessages(
+          rows.map((m) => ({
+            id: `srv-${m.id ?? m.createdAt ?? Math.random()}`,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            timestamp: m.createdAt ? new Date(m.createdAt).getTime() : Date.now(),
+          })),
+        );
+      } catch {
+        // non-fatal — keep existing messages
+      }
+    },
+    [workspaceId, getToken],
+  );
+
   /** Clear the current chat conversation without switching datasets. */
-  const handleNewChat = () => {
-    if (busy || streaming) return;
+  const handleNewChat = useCallback(async () => {
+    if (busy || streaming || !selectedId) return;
+    try {
+      await authFetch(`/master-charts/${selectedId}/chat/clear`, { method: "DELETE" });
+    } catch {
+      // best-effort — clear UI regardless
+    }
     setMessages([]);
     setLastPrompt(null);
     resetStream();
-  };
+  }, [busy, streaming, selectedId, authFetch, resetStream]);
 
   const handleGenerate = async (promptText: string) => {
     if (!selectedId || busy || streaming) return;
@@ -518,6 +550,45 @@ export function MasterChartPanel({
                   title: "Chart saved with warnings",
                   description: "Your chart was committed successfully. Some follow-up steps did not complete.",
                 });
+              } else if (errMsg.toLowerCase().includes("timed out") && selectedId) {
+                // Timeout — the agent may still be running on the server and can commit late.
+                // Show a "still building" state and poll for a new version for up to 90s.
+                const pollChartId = selectedId;
+                const pollVersionBefore = currentVersion;
+                setMessages((m) =>
+                  m.map((msg) =>
+                    msg.id === assistantMsgId
+                      ? { ...msg, content: "Still building your chart — checking for saved progress…" }
+                      : msg,
+                  ),
+                );
+                if (timeoutPollRef.current) clearInterval(timeoutPollRef.current);
+                let pollCount = 0;
+                timeoutPollRef.current = setInterval(async () => {
+                  pollCount++;
+                  await loadDetail(pollChartId);
+                  setCurrentVersion((latest) => {
+                    if (latest > pollVersionBefore) {
+                      clearInterval(timeoutPollRef.current!);
+                      timeoutPollRef.current = null;
+                      toast({ title: "Chart saved", description: `Version ${latest} is ready.` });
+                      void loadChatHistory(pollChartId);
+                    } else if (pollCount >= 18) {
+                      // 18 × 5s = 90s — give up
+                      clearInterval(timeoutPollRef.current!);
+                      timeoutPollRef.current = null;
+                      setMessages((m) =>
+                        m.map((msg) =>
+                          msg.id === assistantMsgId
+                            ? { ...msg, content: `__error__${errMsg}` }
+                            : msg,
+                        ),
+                      );
+                      toast({ title: "Agent timed out", description: errMsg, variant: "destructive" });
+                    }
+                    return latest;
+                  });
+                }, 5000);
               } else {
                 setMessages((m) =>
                   m.map((msg) =>
@@ -561,6 +632,12 @@ export function MasterChartPanel({
     } finally {
       setBusy(false);
       setStatusText(undefined);
+      // Always re-sync chart state and chat history from server after the stream ends
+      // so the UI reflects the committed version and persisted assistant message.
+      if (selectedId) {
+        void loadDetail(selectedId).then(() => void loadCharts());
+        void loadChatHistory(selectedId);
+      }
     }
   };
 

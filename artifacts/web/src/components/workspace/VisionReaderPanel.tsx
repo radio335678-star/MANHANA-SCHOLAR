@@ -319,16 +319,21 @@ function AssistantOutputBubble({
 function HistorySheet({
   workspaceId,
   fetchSessions,
+  fetchSession,
   onLoad,
+  activeSessionId,
 }: {
   workspaceId: number;
   fetchSessions: ReturnType<typeof useVisionReaderStream>["fetchSessions"];
+  fetchSession: ReturnType<typeof useVisionReaderStream>["fetchSession"];
   onLoad: (session: VisionSession) => void;
+  activeSessionId: number | null;
 }) {
   const { getToken } = useAuth();
   const [open, setOpen] = useState(false);
   const [sessions, setSessions] = useState<VisionSession[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingId, setLoadingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -338,6 +343,23 @@ function HistorySheet({
       setLoading(false);
     });
   }, [open, workspaceId, fetchSessions, getToken]);
+
+  const handleSelect = async (s: VisionSession) => {
+    // If the list row already carries full outputText (new API), use it directly.
+    // Otherwise fetch the full session to get outputText.
+    if (s.outputText) {
+      onLoad(s);
+      setOpen(false);
+      return;
+    }
+    setLoadingId(s.id);
+    const full = await fetchSession(workspaceId, s.id, getToken);
+    setLoadingId(null);
+    if (full) {
+      onLoad(full);
+      setOpen(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -365,13 +387,24 @@ function HistorySheet({
               {sessions.map((s) => (
                 <button
                   key={s.id}
-                  className="w-full text-left px-5 py-3.5 hover:bg-muted/40 transition-colors space-y-1"
-                  onClick={() => { onLoad(s); setOpen(false); }}
+                  disabled={loadingId === s.id}
+                  className={cn(
+                    "w-full text-left px-5 py-3.5 hover:bg-muted/40 transition-colors space-y-1",
+                    activeSessionId === s.id && "bg-violet-50/60",
+                  )}
+                  onClick={() => void handleSelect(s)}
                 >
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Eye className="w-3 h-3" />
                     <span>{format(new Date(s.createdAt), "MMM d, yyyy • h:mm a")}</span>
-                    {s.tokensUsed ? (
+                    {activeSessionId === s.id && (
+                      <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-violet-100 text-violet-700 border-violet-300">
+                        Active
+                      </Badge>
+                    )}
+                    {loadingId === s.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin ml-auto" />
+                    ) : s.tokensUsed ? (
                       <Badge variant="outline" className="text-[9px] h-3.5 px-1 ml-auto">
                         {s.tokensUsed.toLocaleString()} tok
                       </Badge>
@@ -388,6 +421,11 @@ function HistorySheet({
                       <span className="text-muted-foreground">+{(s.filesInfo ?? []).length - 4} more</span>
                     )}
                   </div>
+                  {s.outputPreview && (
+                    <p className="text-[10px] text-muted-foreground/70 leading-relaxed line-clamp-2 mt-0.5">
+                      {s.outputPreview}…
+                    </p>
+                  )}
                 </button>
               ))}
             </div>
@@ -441,10 +479,61 @@ export function VisionReaderPanel({
   const [displayText, setDisplayText] = useState("");
   const [autoSyncOn, setAutoSyncOn] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState("");
+  // Local session id that survives in-memory resets (differs from hook's lastSessionId which clears on reset())
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
 
   // Track output during streaming (refs avoid stale state in SSE done handler)
   const outputRef = useRef("");
   const thinkingRef = useRef("");
+
+  // localStorage key for fallback session restore across page refreshes
+  const lsKey = `vision-last-session-${workspaceId}`;
+
+  // Restore last session on mount / workspace change so output is visible after refresh/login.
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      // 1. Prefer DB latest session (most authoritative)
+      const sessions = await fetchSessions(workspaceId, getToken);
+      if (cancelled) return;
+      const latest = sessions[0]; // list is ordered by createdAt DESC
+      if (latest?.outputText) {
+        setDisplayText(latest.outputText);
+        outputRef.current = latest.outputText;
+        setActiveSessionId(latest.id);
+        try { localStorage.setItem(lsKey, String(latest.id)); } catch { /* ignore */ }
+        return;
+      }
+      // 2. If list row has no outputText (shouldn't happen after server fix, but be safe),
+      //    try fetching the full record.
+      if (latest) {
+        const full = await fetchSession(workspaceId, latest.id, getToken);
+        if (cancelled) return;
+        if (full?.outputText) {
+          setDisplayText(full.outputText);
+          outputRef.current = full.outputText;
+          setActiveSessionId(full.id);
+          try { localStorage.setItem(lsKey, String(full.id)); } catch { /* ignore */ }
+          return;
+        }
+      }
+      // 3. localStorage fallback (e.g. DB returned no sessions yet but local remembers an id)
+      let storedId: number | null = null;
+      try { storedId = Number(localStorage.getItem(lsKey)) || null; } catch { /* ignore */ }
+      if (storedId) {
+        const stored = await fetchSession(workspaceId, storedId, getToken);
+        if (cancelled) return;
+        if (stored?.outputText) {
+          setDisplayText(stored.outputText);
+          outputRef.current = stored.outputText;
+          setActiveSessionId(stored.id);
+        }
+      }
+    };
+    void restore();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]);
 
   useEffect(() => {
     if (!streaming) return;
@@ -536,6 +625,12 @@ export function VisionReaderPanel({
           });
         }
 
+        // Persist active session id so it survives refresh
+        if (event.sessionId) {
+          setActiveSessionId(event.sessionId);
+          try { localStorage.setItem(lsKey, String(event.sessionId)); } catch { /* ignore */ }
+        }
+
         if (autoSyncOn && finalText && onSendToDataset) {
           onSendToDataset(`[Vision Reader Output]\n\n${finalText}`);
         }
@@ -572,9 +667,10 @@ export function VisionReaderPanel({
   // ── Vault save ───────────────────────────────────────────────────────────────
 
   const handleSaveVault = useCallback(async () => {
-    if (!lastSessionId || savingVault) return;
+    const sid = activeSessionId ?? lastSessionId;
+    if (!sid || savingVault) return;
     setSavingVault(true);
-    const result = await saveToVault(workspaceId, lastSessionId, undefined, getToken);
+    const result = await saveToVault(workspaceId, sid, undefined, getToken);
     setSavingVault(false);
     if (result.ok) {
       setSavedToVault(true);
@@ -582,7 +678,7 @@ export function VisionReaderPanel({
     } else {
       toast({ variant: "destructive", title: "Save failed", description: "Could not save to vault." });
     }
-  }, [lastSessionId, savingVault, saveToVault, workspaceId, getToken, toast]);
+  }, [activeSessionId, lastSessionId, savingVault, saveToVault, workspaceId, getToken, toast]);
 
   // ── Load session from history ────────────────────────────────────────────────
 
@@ -591,8 +687,11 @@ export function VisionReaderPanel({
       setDisplayText(session.outputText);
       outputRef.current = session.outputText;
     }
+    setActiveSessionId(session.id);
+    try { localStorage.setItem(lsKey, String(session.id)); } catch { /* ignore */ }
     setSavedToVault(false);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lsKey]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -747,7 +846,9 @@ export function VisionReaderPanel({
           <HistorySheet
             workspaceId={workspaceId}
             fetchSessions={fetchSessions}
+            fetchSession={fetchSession}
             onLoad={handleLoadSession}
+            activeSessionId={lastSessionId}
           />
         </div>
       </div>
@@ -797,7 +898,7 @@ export function VisionReaderPanel({
               <TooltipContent>Copy full output to clipboard</TooltipContent>
             </Tooltip>
 
-            {lastSessionId && (
+            {(activeSessionId ?? lastSessionId) && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -900,10 +1001,10 @@ export function VisionReaderPanel({
         </div>
 
         {/* Footer status */}
-        {!streaming && lastSessionId && (
+        {!streaming && (activeSessionId ?? lastSessionId) && (
           <div className="shrink-0 flex items-center gap-2 text-[10px] text-muted-foreground px-4 py-2 border-t border-border/40 bg-muted/10">
             <Brain className="w-3 h-3" />
-            <span>Session #{lastSessionId}</span>
+            <span>Session #{activeSessionId ?? lastSessionId}</span>
             <span className="text-border">·</span>
             <Sparkles className="w-3 h-3" />
             <span>{AI_BRAND} read complete</span>

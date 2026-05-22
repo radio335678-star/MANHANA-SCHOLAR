@@ -29,6 +29,7 @@ Never commit `.env`. Copy secrets from your local `.env` into Render/Vercel dash
 | `MOONSHOT_WEB_SEARCH` | `true` |
 | `KIMI_PRIMARY_MODEL` | `kimi-k2.6` |
 | `KIMI_FALLBACK_MODELS` | `kimi-k2.5` |
+| `DATASET_AGENT_TIMEOUT_MS` | `600000` (optional — default is 600000; raise to `900000` if large master charts still time out) |
 
 Do **not** set `VITE_*` on Render. Render sets `PORT` automatically.
 

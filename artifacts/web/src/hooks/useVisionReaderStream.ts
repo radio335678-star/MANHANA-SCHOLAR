@@ -12,6 +12,7 @@ export type VisionSession = {
   id: number;
   filesInfo: Array<{ name: string; size: number; mimeType: string; kimiFileId?: string }>;
   outputText?: string;
+  outputPreview?: string;
   userPrompt?: string | null;
   tokensUsed?: number | null;
   modelUsed?: string | null;

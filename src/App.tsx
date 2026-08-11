@@ -291,7 +291,7 @@ export function App() {
       setStreamingProgress(30);
 
       const userQuery = customPrompt || action;
-      const systemInst = `You are Manthana Document Assistant. Perform the requested edit on the provided text section. Return a concise, high-impact result. Prompt: ${userQuery}`;
+      const systemInst = `You are Q108 Scholar Document Assistant. Perform the requested edit on the provided text section. Return a concise, high-impact result. Prompt: ${userQuery}`;
       const aiResult = await generateWithGemini25Flash(`Target Section Content:\n${pageText}\n\nTask: ${userQuery}`, systemInst);
 
       const newAst = JSON.parse(JSON.stringify(ast));

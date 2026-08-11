@@ -1,4 +1,4 @@
-// Manthana Scholar - Unified Document AST & Converter Types
+// Q108 Scholar - Unified Document AST & Converter Types
 
 export type FontCategory = 
   | 'geist-sans'

@@ -40,12 +40,12 @@ export const LeftSidebar = ({
 }: LeftSidebarProps) => {
   const [activeTab, setActiveTab] = useState<'ai' | 'navigator' | 'converter' | 'history' | 'references'>('ai');
   const [isExpanded, setIsExpanded] = useState(() => {
-    const saved = localStorage.getItem('manthana_sidebar_expanded');
+    const saved = localStorage.getItem('q108_sidebar_expanded');
     return saved ? JSON.parse(saved) : true;
   });
 
   useEffect(() => {
-    localStorage.setItem('manthana_sidebar_expanded', JSON.stringify(isExpanded));
+    localStorage.setItem('q108_sidebar_expanded', JSON.stringify(isExpanded));
   }, [isExpanded]);
 
   return (

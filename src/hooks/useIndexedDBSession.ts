@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { ManthanaDocumentAST } from '../types/ast';
 
-const DB_NAME = 'ManthanaScholarDB';
+const DB_NAME = 'Q108ScholarDB';
 const STORE_NAME = 'documents';
 const CURRENT_DOC_KEY = 'active_document_session';
 
@@ -43,7 +43,7 @@ export function useIndexedDBSession(
       const getReq = store.get(CURRENT_DOC_KEY);
       getReq.onsuccess = () => {
         if (getReq.result && getReq.result.ast) {
-          console.log('[Manthana DB] Restored document session from IndexedDB');
+          console.log('[Q108 Scholar DB] Restored document session from IndexedDB');
         }
       };
     };

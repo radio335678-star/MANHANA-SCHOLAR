@@ -1,4 +1,4 @@
-// Manthana Scholar - WebGPU Hardware Accelerated In-Browser OCR & Text Service
+// Q108 Scholar - WebGPU Hardware Accelerated In-Browser OCR & Text Service
 
 export interface OCRResult {
   extractedText: string;
@@ -114,7 +114,7 @@ export class WebGpuAIService {
     return (
       `[EXTRACTED FROM NATIVE PDF BUFFER]\nFile: ${file.name} (${Math.round(buffer.byteLength / 1024)} KB)\n` +
       `Pages Detected: 2 Pages\n` +
-      `Content Sample: Manthana Scholar PDF parsing engine running in Web Worker memory.`
+      `Content Sample: Q108 Scholar PDF parsing engine running in Web Worker memory.`
     );
   }
 }

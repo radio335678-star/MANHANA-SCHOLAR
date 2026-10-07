@@ -22,9 +22,9 @@ export const HeaderBar = ({
   return (
     <header className="header" style={{ height: 'var(--header-height)' }}>
       <div className="header-left">
-        <h1 className="logo">
+        <div className="logo">
           Q108 Scholar <span className="logo-badge">STUDY ENGINE</span>
-        </h1>
+        </div>
       </div>
 
       <div className="header-center">

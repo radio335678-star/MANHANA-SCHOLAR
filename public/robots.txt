@@ -1,6 +1,12 @@
 User-agent: *
 Allow: /
 
+# App shell paths are not crawlable (single-page app, no public routes there)
+Disallow: /api/
+Disallow: /app/
+Disallow: /auth/
+Disallow: /dashboard/
+
 # AI crawlers explicitly allowed
 User-agent: GPTBot
 Allow: /
@@ -26,4 +32,5 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
+# llms.txt discovery for AI agents: https://scholar.quaasx108.com/llms.txt
 Sitemap: https://scholar.quaasx108.com/sitemap.xml

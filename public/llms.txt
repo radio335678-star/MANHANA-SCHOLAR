@@ -19,6 +19,17 @@
 - Local WebGPU OCR and file ingestion (PDF, DOCX)
 - Document history, find & replace, focus mode, dark/light themes
 
+## QuaasX108 ecosystem (sibling hosts)
+
+- AI²: https://ai2.quaasx108.com/
+- Notebook: https://notebook.quaasx108.com/
+- Phytomind: https://phytomind-ai2.quaasx108.com/
+- Sheets: https://excel.quaasx108.com/
+- Labs: https://manthana-labs.quaasx108.com/
+- Shalya: https://shalya.quaasx108.com/
+- QuaasX108: https://quaasx108.com/
+- Scholar (this site): https://scholar.quaasx108.com/
+
 ## Crawling
 
 - `robots.txt` allows `/` for all crawlers including AI bots (GPTBot, ChatGPT-User, ClaudeBot, anthropic-ai, Claude-Web, cohere-ai, PerplexityBot, Google-Extended).

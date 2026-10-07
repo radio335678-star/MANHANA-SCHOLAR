@@ -17,7 +17,17 @@ import type { CompilationOutput } from './services/documentCompiler';
 import { WebGpuAIService } from './services/webgpuAI';
 import { BackupNotificationToast } from './components/common/BackupNotificationToast';
 import { UniversalConverterService } from './services/converter';
-import type { OCRResult } from './services/webgpuAI';
+
+// Shared QuaasX108 ecosystem link set (self = Scholar, marked current).
+const ECOSYSTEM_LINKS: Array<{ label: string; href: string }> = [
+  { label: 'AI²', href: 'https://ai2.quaasx108.com/' },
+  { label: 'Notebook', href: 'https://notebook.quaasx108.com/' },
+  { label: 'Phytomind', href: 'https://phytomind-ai2.quaasx108.com/' },
+  { label: 'Sheets', href: 'https://excel.quaasx108.com/' },
+  { label: 'Labs', href: 'https://manthana-labs.quaasx108.com/' },
+  { label: 'Shalya', href: 'https://shalya.quaasx108.com/' },
+  { label: 'QuaasX108', href: 'https://quaasx108.com/' },
+];import type { OCRResult } from './services/webgpuAI';
 import { E2BSandboxService } from './services/e2bSandboxService';
 import type { SandboxExecutionResult } from './services/e2bSandboxService';
 
@@ -401,6 +411,16 @@ export function App() {
         compilationTimeMs={compilation?.compilationTimeMs || 0}
         webGpuActive={webGpuActive}
       />
+
+      <footer aria-label="QuaasX108 ecosystem" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '6px 12px', fontSize: '11px', borderTop: '1px solid var(--border, #27272a)', whiteSpace: 'nowrap', overflowX: 'auto' }}>
+        <span style={{ opacity: 0.6 }}>QuaasX108 ecosystem:</span>
+        <nav aria-label="QuaasX108 ecosystem" style={{ display: 'flex', gap: '12px' }}>
+          {ECOSYSTEM_LINKS.map((l) => (
+            <a key={l.href} href={l.href} target="_blank" rel="noopener">{l.label}</a>
+          ))}
+          <span aria-current="page" style={{ opacity: 0.6 }}>Scholar (you are here)</span>
+        </nav>
+      </footer>
 
       <AgentButton
         isOpen={isAgentPanelOpen}

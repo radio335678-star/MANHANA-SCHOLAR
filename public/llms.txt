@@ -1,0 +1,25 @@
+# Q108 Scholar
+
+> Academic research & study engine: draft research papers, manage citations, compile to PDF/DOCX, run sandboxed Python data analytics, and OCR documents with in-browser WebGPU AI.
+
+- Canonical: https://scholar.quaasx108.com/
+- Sitemap: https://scholar.quaasx108.com/sitemap.xml
+- Package: `q108-scholar` (Vite + React 19, single-page app, no login wall — all routes public and crawler-fetchable)
+
+## Public routes
+
+- `/` — Q108 Scholar studio (document canvas, sidebar templates, inspector, agent panel, command palette)
+
+## What it does
+
+- Research draft outlines, executive memoranda, and blank-document templates with streaming AST generation
+- Reference manager with bibliography export
+- Document compiler: PDF / DOCX / EPUB / Markdown export
+- E2B sandbox actions: Execute Data Analytics, Compile Typst Paper, Extract Tables
+- Local WebGPU OCR and file ingestion (PDF, DOCX)
+- Document history, find & replace, focus mode, dark/light themes
+
+## Crawling
+
+- `robots.txt` allows `/` for all crawlers including AI bots (GPTBot, ChatGPT-User, ClaudeBot, anthropic-ai, Claude-Web, cohere-ai, PerplexityBot, Google-Extended).
+- Single-page app: content renders client-side at `/`; no auth wall blocks crawlers.

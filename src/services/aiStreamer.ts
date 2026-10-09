@@ -165,24 +165,30 @@ export const TEMPLATE_PRESETS: PromptTemplate[] = [
 ];
 
 export const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
-export const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || "";
+export const MODAL_OPENAI_URL = import.meta.env.VITE_OPENAI_BASE_URL
+  ? `${import.meta.env.VITE_OPENAI_BASE_URL.replace(/\/v1\/?$/, "")}/v1/chat/completions`
+  : "https://manthana492-prod-2--antigravity-openai-endpoint-serve.modal.run/v1/chat/completions";
+export const MODAL_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || "";
+export const MODAL_MODEL = import.meta.env.VITE_OPENAI_MODEL || "gemini-3.8-flash-high";
 
-export async function generateWithOpenRouterFree(prompt: string, systemInstruction?: string): Promise<string> {
-  const url = "https://openrouter.ai/api/v1/chat/completions";
+export async function generateWithModalOpenAI(prompt: string, systemInstruction?: string): Promise<string> {
+  if (!MODAL_API_KEY) {
+    throw new Error("AI endpoint not configured");
+  }
   const messages = [];
   if (systemInstruction) {
     messages.push({ role: "system", content: systemInstruction });
   }
   messages.push({ role: "user", content: prompt });
 
-  const response = await fetch(url, {
+  const response = await fetch(MODAL_OPENAI_URL, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+      "Authorization": `Bearer ${MODAL_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "openrouter/free",
+      model: MODAL_MODEL,
       messages: messages
     })
   });
@@ -191,16 +197,18 @@ export async function generateWithOpenRouterFree(prompt: string, systemInstructi
   if (response.status === 200) {
     return data.choices?.[0]?.message?.content || "";
   } else {
-    throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
+    throw new Error(data.error?.message || `Modal API error: ${response.status}`);
   }
 }
 
 export async function generateWithGemini25Flash(prompt: string, systemInstruction?: string): Promise<string> {
-  // Primary AI: Try OpenRouter auto-router free tier first, fallback to Gemini 2.5 Flash
-  try {
-    return await generateWithOpenRouterFree(prompt, systemInstruction);
-  } catch (err) {
-    console.warn("OpenRouter failed, falling back to Gemini:", err);
+  // Primary AI: Try Modal OpenAI endpoint first, fallback to Gemini
+  if (MODAL_API_KEY) {
+    try {
+      return await generateWithModalOpenAI(prompt, systemInstruction);
+    } catch (err) {
+      console.warn("Modal AI failed, falling back to Gemini:", err);
+    }
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
